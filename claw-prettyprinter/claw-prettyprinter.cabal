@@ -1,0 +1,40 @@
+cabal-version:       2.2
+
+name:                claw-prettyprinter
+version:             0.1.0.0
+synopsis:            claw + prettyprinter
+description:         Composing command-line help documents and rendering
+                     parsing failures using prettyprinter.
+license:             BSD-3-Clause
+author:              Oleksii Divak
+maintainer:          Oleksii Divak <frozenwitness@gmail.com>
+copyright:           (c) 2024 Oleksii Divak
+category:            CLI
+build-type:          Simple
+extra-doc-files:     CHANGELOG.md
+                     README.md
+
+library
+  exposed-modules:  System.Console.Options.Failure
+                    System.Console.Options.Help
+                    System.Console.Options.TH.Failure
+
+  other-modules:    System.Console.Options.Failure.Internal
+                    System.Console.Options.Help.Internal
+
+  hs-source-dirs:   src
+
+  build-depends:    base             >= 4.12 && < 5
+                  , claw             >= 0.1 && <= 0.2
+                  , prettyprinter    >= 1.7 && <= 1.8
+                  , text             >= 2.0 && < 2.2
+
+  ghc-options:      -Wall
+
+  default-language: Haskell2010
+
+
+
+source-repository head
+  type: git
+  location: git://github.com/BurningWitness/claw.git

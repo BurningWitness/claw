@@ -1,0 +1,3 @@
+packages: claw/claw.cabal
+        , claw-example/claw-example.cabal
+        , claw-prettyprinter/claw-prettyprinter.cabal
