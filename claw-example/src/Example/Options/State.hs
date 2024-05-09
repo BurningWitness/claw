@@ -57,7 +57,7 @@ data Error = NotABase String
 
 
 setBase :: Int -> State -> Either Breaker State
-setBase i s = Right s { base = Just (Base i) }
+setBase i s = Right $! s { base = Just (Base i) }
 
 updateBase :: String -> State -> Either Breaker State
 updateBase t s =
@@ -65,13 +65,13 @@ updateBase t s =
     Nothing -> Left . Error $ NotABase t
     Just i
       | i < 2 || i > 16 -> Left . Error $ BaseOutOfBounds i
-      | otherwise       -> Right s { base = Just (Base i) }
+      | otherwise       -> Right $! s { base = Just (Base i) }
 
 
 
 updateOperation :: String -> State -> Either Breaker State
 updateOperation x s =
-  let set o = Right s { operation = Just o }
+  let set o = Right $! s { operation = Just o }
   in case x of
        "sum"     -> set Sum
        "product" -> set Product
@@ -82,11 +82,11 @@ updateOperation x s =
 
 
 setQuiet :: State -> Either Breaker State
-setQuiet s = Right s { verbosity = Just Quiet }
+setQuiet s = Right $! s { verbosity = Just Quiet }
 
 updateVerbosity :: Maybe String -> State -> Either Breaker State
 updateVerbosity mayx s =
-  let set v = Right s { verbosity = Just v }
+  let set v = Right $! s { verbosity = Just v }
   in case mayx of
        Nothing  -> set Verbose1
        Just "0" -> set Quiet
