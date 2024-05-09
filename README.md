@@ -1,7 +1,5 @@
 # claw
 
----
-
 Haskell libraries for managing command-line options.
 
 Divided in the following fashion:
