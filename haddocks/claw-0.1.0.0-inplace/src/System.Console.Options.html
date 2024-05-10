@@ -1,0 +1,197 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE TemplateHaskellQuotes #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="annot"><span class="hs-comment">{- | Runtime-evaluated command-line option parsing.
+
+     == Implementation
+
+     Description of the argument syntax can be found at
+     [GNU Program Argument Syntax Conventions](https://www.gnu.org/software/libc/manual/html_node/Argument-Syntax.html)
+     page, which extends the short-option-only
+     [POSIX Utility Conventions](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap12.html).
+ -}</span></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.Console.Options</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Console.Option.Internal.html#Name"><span class="hs-identifier">Name</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Construct</span></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Console.Option.Internal.html#Option"><span class="hs-identifier">Option</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><span class="hs-comment">-- | === Flavor</span></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Console.Option.Internal.html#Flavor"><span class="hs-identifier">Flavor</span></a></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Options.html#plain"><span class="hs-identifier">plain</span></a></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Options.html#optional"><span class="hs-identifier">optional</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Options.html#required"><span class="hs-identifier">required</span></a></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Combine</span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Console.Options.Lazy.Internal.html#Options"><span class="hs-identifier">Options</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Options.html#none"><span class="hs-identifier">none</span></a></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Options.html#.%3E"><span class="hs-operator">(.&gt;)</span></a></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Precompile</span></span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><span class="hs-comment">-- | Refer to &quot;System.Console.Options.TH&quot; on how to construct 'OptionsQ'.</span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Options.html#precompile"><span class="hs-identifier">precompile</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Analyze</span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Console.Options.Lazy.Internal.html#suggestions"><span class="hs-identifier">suggestions</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Parse</span></span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="hs-comment">-- | === Decoder</span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Console.Options.Internal.html#Order"><span class="hs-identifier">Order</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Console.Options.Internal.html#Decoder"><span class="hs-identifier">Decoder</span></a></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Options.html#decode"><span class="hs-identifier">decode</span></a></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><span class="hs-comment">-- | === Runner</span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Console.Options.Internal.html#Failure"><span class="hs-identifier">Failure</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Console.Options.Internal.html#Result"><span class="hs-identifier">Result</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Console.Options.Internal.html#run"><span class="hs-identifier">run</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-comment">-- | Refer to &quot;Codec.Console.Options&quot; for both the unwrapping of the 'Decoder'</span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-comment">--   and other runner functions.</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Re-exports</span></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Identity</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Codec.Console.Options.Internal.html"><span class="hs-identifier">Codec.Console.Options.Internal</span></a></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Console.Option.Internal.html"><span class="hs-identifier">Data.Console.Option.Internal</span></a></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Console.Options.Lazy.Internal.html"><span class="hs-identifier">Data.Console.Options.Lazy.Internal</span></a></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Console.Options.Strict.Internal.html"><span class="hs-identifier">Data.Console.Options.Strict.Internal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Options.Strict.Internal.html#OptionsQ"><span class="hs-identifier">OptionsQ</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Console.Options.Strict.Internal.html#sequenceCode"><span class="hs-identifier">sequenceCode</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Console.Options.Strict.Internal.html#toLazy"><span class="hs-identifier">toLazy</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Functor.Identity</span></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Language.Haskell.TH.Syntax</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="annot"><span class="hs-comment">-- | Option takes no arguments.</span></span><span>
+</span><span id="line-66"></span><span id="local-6989586621679059869"><span id="local-6989586621679059871"><span class="annot"><a href="System.Console.Options.html#plain"><span class="hs-identifier hs-type">plain</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679059869"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Option.Internal.html#Flavor"><span class="hs-identifier hs-type">Flavor</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679059871"><span class="hs-identifier hs-type">help</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679059869"><span class="hs-identifier hs-type">f</span></a></span></span></span><span>
+</span><span id="line-67"></span><span id="plain"><span class="annot"><span class="annottext">plain :: forall f help. f -&gt; Flavor Identity help f
+</span><a href="System.Console.Options.html#plain"><span class="hs-identifier hs-var hs-var">plain</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity f -&gt; Flavor Identity help f
+forall (m :: * -&gt; *) help f. m f -&gt; Flavor m help f
+</span><a href="Data.Console.Option.Internal.html#Plain"><span class="hs-identifier hs-var">Plain</span></a></span><span> </span><span class="annot"><span class="annottext">(Identity f -&gt; Flavor Identity help f)
+-&gt; (f -&gt; Identity f) -&gt; f -&gt; Flavor Identity help f
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">f -&gt; Identity f
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="annot"><span class="hs-comment">-- | Option takes an optional argument.</span></span><span>
+</span><span id="line-70"></span><span id="local-6989586621679059882"><span id="local-6989586621679059883"><span class="annot"><a href="System.Console.Options.html#optional"><span class="hs-identifier hs-type">optional</span></a></span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679059882"><span class="hs-identifier hs-type">help</span></a></span><span>                   </span><span class="hs-comment">-- ^ Help description for the argument,</span><span>
+</span><span id="line-72"></span><span>                            </span><span class="hs-comment">--   i.e. @ARG@ in @-o, --option[=ARG]@.</span><span>
+</span><span id="line-73"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679059883"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Option.Internal.html#Flavor"><span class="hs-identifier hs-type">Flavor</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679059882"><span class="hs-identifier hs-type">help</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679059883"><span class="hs-identifier hs-type">f</span></a></span></span></span><span>
+</span><span id="line-75"></span><span id="optional"><span class="annot"><span class="annottext">optional :: forall help f.
+help -&gt; (Maybe String -&gt; f) -&gt; Flavor Identity help f
+</span><a href="System.Console.Options.html#optional"><span class="hs-identifier hs-var hs-var">optional</span></a></span></span><span> </span><span id="local-6989586621679059950"><span class="annot"><span class="annottext">help
+</span><a href="#local-6989586621679059950"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">help -&gt; Identity (Maybe String -&gt; f) -&gt; Flavor Identity help f
+forall (m :: * -&gt; *) help f.
+help -&gt; m (Maybe String -&gt; f) -&gt; Flavor m help f
+</span><a href="Data.Console.Option.Internal.html#Optional"><span class="hs-identifier hs-var">Optional</span></a></span><span> </span><span class="annot"><span class="annottext">help
+</span><a href="#local-6989586621679059950"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">(Identity (Maybe String -&gt; f) -&gt; Flavor Identity help f)
+-&gt; ((Maybe String -&gt; f) -&gt; Identity (Maybe String -&gt; f))
+-&gt; (Maybe String -&gt; f)
+-&gt; Flavor Identity help f
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Maybe String -&gt; f) -&gt; Identity (Maybe String -&gt; f)
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="annot"><span class="hs-comment">-- | Option requires an argument.</span></span><span>
+</span><span id="line-78"></span><span id="local-6989586621679059886"><span id="local-6989586621679059887"><span class="annot"><a href="System.Console.Options.html#required"><span class="hs-identifier hs-type">required</span></a></span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679059886"><span class="hs-identifier hs-type">help</span></a></span><span>                   </span><span class="hs-comment">-- ^ Help description for the argument,</span><span>
+</span><span id="line-80"></span><span>                            </span><span class="hs-comment">--   i.e. @ARG@ in @-o, --option=ARG@.</span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679059887"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Option.Internal.html#Flavor"><span class="hs-identifier hs-type">Flavor</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679059886"><span class="hs-identifier hs-type">help</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679059887"><span class="hs-identifier hs-type">f</span></a></span></span></span><span>
+</span><span id="line-83"></span><span id="required"><span class="annot"><span class="annottext">required :: forall help f. help -&gt; (String -&gt; f) -&gt; Flavor Identity help f
+</span><a href="System.Console.Options.html#required"><span class="hs-identifier hs-var hs-var">required</span></a></span></span><span> </span><span id="local-6989586621679059952"><span class="annot"><span class="annottext">help
+</span><a href="#local-6989586621679059952"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">help -&gt; Identity (String -&gt; f) -&gt; Flavor Identity help f
+forall (m :: * -&gt; *) help f.
+help -&gt; m (String -&gt; f) -&gt; Flavor m help f
+</span><a href="Data.Console.Option.Internal.html#Required"><span class="hs-identifier hs-var">Required</span></a></span><span> </span><span class="annot"><span class="annottext">help
+</span><a href="#local-6989586621679059952"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">(Identity (String -&gt; f) -&gt; Flavor Identity help f)
+-&gt; ((String -&gt; f) -&gt; Identity (String -&gt; f))
+-&gt; (String -&gt; f)
+-&gt; Flavor Identity help f
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; f) -&gt; Identity (String -&gt; f)
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-keyword">infixl</span><span> </span><span class="hs-number">5</span><span> </span><span class="annot"><a href="System.Console.Options.html#.%3E"><span class="hs-operator hs-type">.&gt;</span></a></span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- | Insert an option into the dictionary.</span><span>
+</span><span id="line-89"></span><span class="hs-comment">--</span><span>
+</span><span id="line-90"></span><span class="hs-comment">--   If the option has an empty list of names, nothing is added to the dictionary.</span><span>
+</span><span id="line-91"></span><span class="hs-comment">--   Empty long names are similarly treated as no-ops.</span><span>
+</span><span id="line-92"></span><span class="hs-comment">--   When inserting duplicate names new values take precedence.</span><span>
+</span><span id="line-93"></span><span id="local-6989586621679059890"><span id="local-6989586621679059892"><span class="annot"><a href="System.Console.Options.html#.%3E"><span class="hs-operator hs-type">(.&gt;)</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Console.Options.Lazy.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679059890"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Option.Internal.html#Option"><span class="hs-identifier hs-type">Option</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679059892"><span class="hs-identifier hs-type">help</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679059890"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Lazy.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679059890"><span class="hs-identifier hs-type">f</span></a></span></span></span><span>
+</span><span id="line-94"></span><span id=".%3E"><span class="annot"><span class="annottext">.&gt; :: forall f help.
+Options Identity f -&gt; Option Identity help f -&gt; Options Identity f
+</span><a href="System.Console.Options.html#.%3E"><span class="hs-operator hs-var hs-var">(.&gt;)</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Option Identity help f
+ -&gt; Options Identity f -&gt; Options Identity f)
+-&gt; Options Identity f
+-&gt; Option Identity help f
+-&gt; Options Identity f
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">Option Identity help f -&gt; Options Identity f -&gt; Options Identity f
+forall help f.
+Option Identity help f -&gt; Options Identity f -&gt; Options Identity f
+</span><a href="Data.Console.Options.Lazy.Internal.html#insert"><span class="hs-identifier hs-var">insert</span></a></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="annot"><span class="hs-comment">-- | Empty option dictionary.</span></span><span>
+</span><span id="line-97"></span><span id="local-6989586621679059901"><span class="annot"><a href="System.Console.Options.html#none"><span class="hs-identifier hs-type">none</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Console.Options.Lazy.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679059901"><span class="hs-identifier hs-type">f</span></a></span></span><span>
+</span><span id="line-98"></span><span id="none"><span class="annot"><span class="annottext">none :: forall f. Options Identity f
+</span><a href="System.Console.Options.html#none"><span class="hs-identifier hs-var hs-var">none</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Options Identity f
+forall (m :: * -&gt; *) f. Options m f
+</span><a href="Data.Console.Options.Lazy.Internal.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="annot"><span class="hs-comment">-- | Precompile the option dictionary.</span></span><span>
+</span><span id="line-103"></span><span id="local-6989586621679059905"><span class="annot"><a href="System.Console.Options.html#precompile"><span class="hs-identifier hs-type">precompile</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Console.Options.Strict.Internal.html#OptionsQ"><span class="hs-identifier hs-type">OptionsQ</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679059905"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Code</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Q</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Options.Lazy.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679059905"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-104"></span><span id="precompile"><span class="annot"><span class="annottext">precompile :: forall f. OptionsQ f -&gt; Code Q (Options Identity f)
+</span><a href="System.Console.Options.html#precompile"><span class="hs-identifier hs-var hs-var">precompile</span></a></span></span><span> </span><span id="local-6989586621679059963"><span class="annot"><span class="annottext">OptionsQ f
+</span><a href="#local-6989586621679059963"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-105"></span><span>  </span><span class="annot"><span class="annottext">Q (Code Q (Options Identity f)) -&gt; Code Q (Options Identity f)
+forall (m :: * -&gt; *) a. Monad m =&gt; m (Code m a) -&gt; Code m a
+</span><span class="hs-identifier hs-var">joinCode</span></span><span> </span><span class="annot"><span class="annottext">(Q (Code Q (Options Identity f)) -&gt; Code Q (Options Identity f))
+-&gt; Q (Code Q (Options Identity f)) -&gt; Code Q (Options Identity f)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-106"></span><span>    </span><span class="annot"><span class="annottext">Code Q (Options Identity f) -&gt; Q (Code Q (Options Identity f))
+forall a. a -&gt; Q a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">[||</span><span> </span><span class="annot"><span class="annottext">Options m f -&gt; Options m f
+forall (m :: * -&gt; *) f. Options m f -&gt; Options m f
+</span><a href="Data.Console.Options.Strict.Internal.html#toLazy"><span class="hs-identifier hs-var">toLazy</span></a></span><span> </span><span class="hs-special">$$</span><span class="hs-special">(</span><span class="annot"><span class="annottext">OptionsQ f -&gt; Code Q (Options Identity f)
+forall f. Q (Options (Code Q) f) -&gt; Code Q (Options Identity f)
+</span><a href="Data.Console.Options.Strict.Internal.html#sequenceCode"><span class="hs-identifier hs-var">sequenceCode</span></a></span><span> </span><span class="annot"><span class="annottext">OptionsQ f
+</span><a href="#local-6989586621679059963"><span class="hs-identifier hs-var">q</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">||]</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="System.Console.Options.html#decode"><span class="hs-pragma hs-type">decode</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-111"></span><span class="annot"><span class="hs-comment">-- | Construct a decoder.</span></span><span>
+</span><span id="line-112"></span><span id="local-6989586621679059923"><span class="annot"><a href="System.Console.Options.html#decode"><span class="hs-identifier hs-type">decode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Codec.Console.Options.Internal.html#Order"><span class="hs-identifier hs-type">Order</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Lazy.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679059923"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Console.Options.Internal.html#Decoder"><span class="hs-identifier hs-type">Decoder</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679059923"><span class="hs-identifier hs-type">f</span></a></span></span><span>
+</span><span id="line-113"></span><span id="decode"><span class="annot"><span class="annottext">decode :: forall f. Order -&gt; Options Identity f -&gt; Decoder f
+</span><a href="System.Console.Options.html#decode"><span class="hs-identifier hs-var hs-var">decode</span></a></span></span><span> </span><span id="local-6989586621679059965"><span class="annot"><span class="annottext">Order
+</span><a href="#local-6989586621679059965"><span class="hs-identifier hs-var">order</span></a></span></span><span> </span><span id="local-6989586621679059966"><span class="annot"><span class="annottext">Options Identity f
+</span><a href="#local-6989586621679059966"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-114"></span><span>  </span><span class="annot"><span class="annottext">([String] -&gt; Step f) -&gt; Decoder f
+forall f. ([String] -&gt; Step f) -&gt; Decoder f
+</span><a href="Codec.Console.Options.Internal.html#Decoder"><span class="hs-identifier hs-var">Decoder</span></a></span><span> </span><span class="annot"><span class="annottext">(([String] -&gt; Step f) -&gt; Decoder f)
+-&gt; ([String] -&gt; Step f) -&gt; Decoder f
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-115"></span><span>    </span><span class="annot"><span class="annottext">(Name -&gt; Maybe (Pair f)) -&gt; Order -&gt; [String] -&gt; Step f
+forall f. (Name -&gt; Maybe (Pair f)) -&gt; Order -&gt; [String] -&gt; Step f
+</span><a href="Codec.Console.Options.Internal.html#step"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Name -&gt; Options Identity f -&gt; Maybe (Pair f))
+-&gt; Options Identity f -&gt; Name -&gt; Maybe (Pair f)
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">Name -&gt; Options Identity f -&gt; Maybe (Pair f)
+forall f. Name -&gt; Options Identity f -&gt; Maybe (Pair f)
+</span><a href="Data.Console.Options.Lazy.Internal.html#lookup"><span class="hs-identifier hs-var">Data.Console.Options.Lazy.Internal.lookup</span></a></span><span> </span><span class="annot"><span class="annottext">Options Identity f
+</span><a href="#local-6989586621679059966"><span class="hs-identifier hs-var">opts</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Order
+</span><a href="#local-6989586621679059965"><span class="hs-identifier hs-var">order</span></a></span><span>
+</span><span id="line-116"></span></pre></body></html>
