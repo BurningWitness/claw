@@ -107,7 +107,7 @@ applyOperation op nums =
 
     Median
       | odd (length nums)
-      , i:_ <- drop (quot (length nums) 2 - 1) nums -> fromIntegral i
+      , i:_ <- drop (quot (length nums) 2) nums -> fromIntegral i
 
       | otherwise                ->
           case drop (quot (length nums) 2 - 1) nums of
