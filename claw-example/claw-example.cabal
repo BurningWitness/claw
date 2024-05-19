@@ -12,6 +12,10 @@ build-type:          Simple
 executable example
   main-is:          Main.hs
 
+  other-modules:    Example.Core
+                    Example.Options
+                    Example.Options.State
+
   hs-source-dirs:   app
                   , src
 
@@ -27,6 +31,10 @@ executable example
 
 executable example-th
   main-is:          Main.hs
+
+  other-modules:    Example.Core
+                    Example.Options.TH
+                    Example.Options.State
 
   hs-source-dirs:   app-th
                   , src
