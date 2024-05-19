@@ -1,7 +1,7 @@
 cabal-version:       2.2
 
 name:                claw-example
-version:             0.1.0.0
+version:             1.0.0.0
 license:             BSD-3-Clause
 author:              Oleksii Divak
 maintainer:          Oleksii Divak <frozenwitness@gmail.com>
@@ -20,10 +20,16 @@ executable example
                   , src
 
   build-depends:    base               >= 4.16 && < 5
-                  , claw               >= 0.1 && <= 0.2
-                  , claw-prettyprinter >= 0.1 && <= 0.2
+                  , claw               >= 1.0 && <= 1.1
+                  , claw-prettyprinter >= 1.0 && <= 1.1
+                  , os-string          >= 2 && < 3
                   , prettyprinter      >= 1.7 && <= 1.8
                   , text               >= 2   && <= 2.2
+
+  if os(windows)
+    build-depends:  Win32              >= 2.13.3 && < 2.15
+  else
+    build-depends:  unix               >= 2.8.0 && < 2.9
 
   ghc-options:      -Wall
 
@@ -40,11 +46,17 @@ executable example-th
                   , src
 
   build-depends:    base               >= 4.16 && < 5
-                  , claw               >= 0.1 && <= 0.2
-                  , claw-prettyprinter >= 0.1 && <= 0.2
+                  , claw               >= 1.0 && <= 1.1
+                  , claw-prettyprinter >= 1.0 && <= 1.1
+                  , os-string          >= 2 && < 3
                   , prettyprinter      >= 1.7 && <= 1.8
                   , text               >= 2   && <= 2.2
                   , template-haskell   >= 2.17 && < 3
+
+  if os(windows)
+    build-depends:  Win32              >= 2.13.3 && < 2.15
+  else
+    build-depends:  unix               >= 2.8.0 && < 2.9
 
   ghc-options:      -Wall
 

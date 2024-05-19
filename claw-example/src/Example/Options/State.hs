@@ -21,6 +21,8 @@ module Example.Options.State
 
 import           Example.Core
 
+import           System.OsString (OsString)
+import qualified System.OsString as Os
 import           Text.Read
 
 
@@ -49,9 +51,12 @@ data Breaker = Benign Benign
 data Benign = Help
             | Version
 
-data Error = NotABase String
+data Error = InvalidBaseEncoding
+           | NotABase String
            | BaseOutOfBounds Int
+           | InvalidOperationEncoding
            | UnknownOperation String
+           | InvalidVerbosityEncoding
            | UnknownVerbosity String
 
 
@@ -59,37 +64,48 @@ data Error = NotABase String
 setBase :: Int -> State -> Either Breaker State
 setBase i s = Right $! s { base = Just (Base i) }
 
-updateBase :: String -> State -> Either Breaker State
-updateBase t s =
-  case readMaybe t of
-    Nothing -> Left . Error $ NotABase t
-    Just i
-      | i < 2 || i > 16 -> Left . Error $ BaseOutOfBounds i
-      | otherwise       -> Right $! s { base = Just (Base i) }
+updateBase :: OsString -> State -> Either Breaker State
+updateBase xx s =
+  case Os.decodeUtf xx of
+    Nothing -> Left $ Error InvalidBaseEncoding
+    Just t  ->
+      case readMaybe t of
+        Nothing -> Left . Error $ NotABase t
+        Just i
+          | i < 2 || i > 16 -> Left . Error $ BaseOutOfBounds i
+          | otherwise       -> Right $! s { base = Just (Base i) }
 
 
 
-updateOperation :: String -> State -> Either Breaker State
-updateOperation x s =
+updateOperation :: OsString -> State -> Either Breaker State
+updateOperation xx s =
   let set o = Right $! s { operation = Just o }
-  in case x of
-       "sum"     -> set Sum
-       "product" -> set Product
-       "average" -> set Average
-       "median"  -> set Median
-       _         -> Left . Error $ UnknownOperation x
+  in case Os.decodeUtf xx of
+       Nothing -> Left $ Error InvalidOperationEncoding
+       Just x  ->
+         case x of
+           "sum"     -> set Sum
+           "product" -> set Product
+           "average" -> set Average
+           "median"  -> set Median
+           _         -> Left . Error $ UnknownOperation x
 
 
 
 setQuiet :: State -> Either Breaker State
 setQuiet s = Right $! s { verbosity = Just Quiet }
 
-updateVerbosity :: Maybe String -> State -> Either Breaker State
+updateVerbosity :: Maybe OsString -> State -> Either Breaker State
 updateVerbosity mayx s =
   let set v = Right $! s { verbosity = Just v }
   in case mayx of
        Nothing  -> set Verbose1
-       Just "0" -> set Quiet
-       Just "1" -> set Verbose1
-       Just "2" -> set Verbose2
-       Just x   -> Left . Error $ UnknownVerbosity x
+       Just xx  ->
+         case Os.decodeUtf xx of
+           Nothing  -> Left $ Error InvalidVerbosityEncoding
+           Just x   ->
+             case x of
+               "0" -> set Quiet
+               "1" -> set Verbose1
+               "2" -> set Verbose2
+               _   -> Left . Error $ UnknownVerbosity x

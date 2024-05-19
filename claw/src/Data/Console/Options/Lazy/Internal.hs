@@ -17,6 +17,7 @@ module Data.Console.Options.Lazy.Internal
 import           Data.Console.Option.Internal
 import qualified Data.Primitive.ByteArray.Levenshtein as Levenshtein
 import           System.Console.Options.Internal
+import           System.OsString.Custom
 
 import           Control.Monad.ST
 import           Data.Coerce
@@ -29,8 +30,8 @@ import           Data.Radix1Tree.Word8.Key.Unsafe
 import           Data.Radix1Tree.Word8.Lazy (Radix1Tree)
 import qualified Data.Radix1Tree.Word8.Lazy as Radix
 import qualified Data.Radix1Tree.Word8.Lazy.Unsafe as Radix
-import           Data.Text (Text)
-import qualified Data.Text as Text
+import qualified System.OsString as Os
+import           System.OsString.Internal.Types
 
 
 
@@ -53,7 +54,7 @@ lookup name (Options pat radix) =
   coerce $
     case name of
       Short s -> Patricia.lookup (fromIntegral $ fromEnum s) pat
-      Long ls -> Radix.lookup (unsafeFeedText ls) radix
+      Long ls -> Radix.lookup (unsafeFeedShortByteString (unify ls)) radix
 
 
 
@@ -79,15 +80,15 @@ insertShort c pair (Options pat radix) =
   in Options pat' radix
 
 insertLong
-  :: Text
+  :: OsString
   -> Pair f
   -> Options Identity f
   -> Options Identity f
-insertLong txt !pair (Options pat radix) =
+insertLong name !pair (Options pat radix) =
   let !(# radix' #)
-        | Text.null txt = (# radix #)
-        | otherwise     =
-            (# Radix.insert (unsafeFeedText txt) (Identity pair) radix #)
+        | Os.null name = (# radix #)
+        | otherwise   =
+            (# Radix.insert (unsafeFeedShortByteString (unify name)) (Identity pair) radix #)
 
   in Options pat radix'
 
@@ -95,7 +96,7 @@ insertLong txt !pair (Options pat radix) =
 
 -- | Fuzzy search for 'System.Console.Options.Unrecognized' options.
 suggestions
-  :: String             -- ^ Argument that the option name is a part of, without
+  :: OsString           -- ^ Argument that the option name is a part of, without
                         --   the preceding dash(es).
   -> Name               -- ^ Option name in question.
   -> Options Identity f
@@ -109,7 +110,7 @@ suggestions arg name (Options pat radix) =
 
 
 
-collectLevenshtein :: Int -> Text -> Radix1Tree a -> [Name]
+collectLevenshtein :: Int -> OsString -> Radix1Tree a -> [Name]
 collectLevenshtein cap input =
   let !r = runST $ Levenshtein.initialize input
 
@@ -126,7 +127,10 @@ collectLevenshtein cap input =
 
           in if Levenshtein.rate input v <= cap
                then case mx of
-                      Just _  -> Long (unsafeBuildText (Build1 $ b :/ arr)) : more
+                      Just _  ->
+                        Long (divide $ Radix.buildShortByteString (Build1 $ b :/ arr))
+                          : more
+
                       Nothing -> more
 
                else more

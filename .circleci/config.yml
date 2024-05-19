@@ -1,7 +1,10 @@
 version: 2.1
 
+orbs:
+  win: circleci/windows@5.0
+
 jobs:
-  build:
+  build-linux:
     machine:
       image: ubuntu-2004:current
     resource_class: medium
@@ -46,21 +49,64 @@ jobs:
           command: cabal new-test claw:test:compliance --test-show-details=streaming
 
 
+  build-windows:
+    executor: win/default
+    parameters:
+      cabal:
+        type: string
+      ghc:
+        type: string
+    steps:
+      - checkout
+      - run:
+          name: Install Cabal and GHC
+          shell: bash.exe
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_MINIMAL=1 sh
+
+            PATH=/C/ghcup/bin:$PATH
+
+            ghcup install cabal << parameters.cabal >>
+            ghcup set cabal << parameters.cabal >>
+
+            ghcup install ghc << parameters.ghc >>
+            ghcup set ghc << parameters.ghc >>
+
+            echo 'export PATH=/C/ghcup/bin:$PATH' >> $BASH_ENV
+
+      - run:
+          name: Update Dependencies
+          shell: bash.exe
+          command: |
+            cabal new-update
+
+      - run:
+          name: Build
+          shell: bash.exe
+          command: cabal new-build all --enable-tests
+
+      - save_cache:
+          name: Cache
+          key: linux-<< parameters.ghc >>-{{ checksum "claw/claw.cabal" }}
+          paths:
+            - "/root/.cabal"
+            - "dist-newstyle"
+
+      - run:
+          name: Test
+          shell: bash.exe
+          command: cabal new-test claw:test:compliance --test-show-details=streaming
+
 
 workflows:
   workflow:
     jobs:
-      - build:
-          name: linux-9.2.7
-          cabal: 3.6.2.0
-          ghc: 9.2.7
+      - build-linux:
+          name: linux-9.10.1
+          cabal: 3.10.3.0
+          ghc: 9.10.1
 
-      - build:
-          name: linux-9.4.8
-          cabal: 3.6.2.0
-          ghc: 9.4.8
-
-      - build:
-          name: linux-9.6.4
-          cabal: 3.6.2.0
-          ghc: 9.6.4
+      - build-windows:
+          name: windows-9.10.1
+          cabal: 3.10.3.0
+          ghc: 9.10.1

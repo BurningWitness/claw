@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings
+           , QuasiQuotes
            , TemplateHaskellQuotes #-}
 
 module Example.Options.TH
@@ -24,6 +25,8 @@ import           Prettyprinter
 import           Prettyprinter.Util
 import           System.Console.Options.Help
 import           System.Console.Options.TH
+import           System.OsString (osstr)
+import           System.OsString.Internal.Types
 
 
 
@@ -54,19 +57,19 @@ help
   , quiet
   , verbose
  :: Option (Code Q) (Doc ann) (State -> Either Breaker State)
-help        = Option (Short 'h' :| [Long "help"]) (plain [|| \_ -> Left (Benign Help) ||])
-version     = Option (Long "version" :| [])       (plain [|| \_ -> Left (Benign Version) ||])
+help        = Option (Short 'h' :| [Long [osstr|help|]]) (plain [|| \_ -> Left (Benign Help) ||])
+version     = Option (Long [osstr|version|] :| [])       (plain [|| \_ -> Left (Benign Version) ||])
 
-base        = Option (Short 'b' :| [Long "base"]) (required "NUMBER" [|| updateBase ||])
-binary      = Option (Long "binary"      :| []) (plain [|| setBase 2  ||])
-octal       = Option (Long "octal"       :| []) (plain [|| setBase 8  ||])
-decimal     = Option (Long "decimal"     :| []) (plain [|| setBase 10 ||])
-hexadecimal = Option (Long "hexadecimal" :| []) (plain [|| setBase 16 ||])
+base        = Option (Short 'b' :| [Long [osstr|base|]]) (required "NUMBER" [|| updateBase ||])
+binary      = Option (Long [osstr|binary|]      :| []) (plain [|| setBase 2  ||])
+octal       = Option (Long [osstr|octal|]       :| []) (plain [|| setBase 8  ||])
+decimal     = Option (Long [osstr|decimal|]     :| []) (plain [|| setBase 10 ||])
+hexadecimal = Option (Long [osstr|hexadecimal|] :| []) (plain [|| setBase 16 ||])
 
-operation   = Option (Short 'o' :| [Long "operation"]) (required "NAME" [|| updateOperation ||])
+operation   = Option (Short 'o' :| [Long [osstr|operation|]]) (required "NAME" [|| updateOperation ||])
 
-quiet       = Option (Short 'q' :| [Long "quiet"]) (plain [|| setQuiet ||])
-verbose     = Option (Short 'v' :| [Long "verbose"]) (optional "LEVEL" [|| updateVerbosity ||])
+quiet       = Option (Short 'q' :| [Long [osstr|quiet|]]) (plain [|| setQuiet ||])
+verbose     = Option (Short 'v' :| [Long [osstr|verbose|]]) (optional "LEVEL" [|| updateVerbosity ||])
 
 
 
@@ -131,8 +134,17 @@ versionDoc =
 
 errorDoc :: Error -> Doc ann
 errorDoc e =
-  case e of
-    NotABase str         -> "'" <> pretty str <> "' is not a valid base"
-    BaseOutOfBounds i    -> "Base '" <> pretty i <> "' is not in the 2-16 range"
-    UnknownOperation str -> "'" <> pretty str <> "' is not a valid operation"
-    UnknownVerbosity str -> "'" <> pretty str <> "' is not a valid verbosity"
+  let kind = case coercionToPlatformTypes of
+               Left _  -> "16LE"
+               Right _ -> "8"
+
+      encodingError = " argument is a malformed UTF-" <> kind <> " stream"
+
+  in case e of
+       InvalidBaseEncoding      -> "Base " <> encodingError
+       NotABase str             -> "'" <> pretty str <> "' is not a valid base"
+       BaseOutOfBounds i        -> "Base '" <> pretty i <> "' is not in the 2-16 range"
+       InvalidOperationEncoding -> "Operation " <> encodingError
+       UnknownOperation str     -> "'" <> pretty str <> "' is not a valid operation"
+       InvalidVerbosityEncoding -> "Verbosity " <> encodingError
+       UnknownVerbosity str     -> "'" <> pretty str <> "' is not a valid verbosity"

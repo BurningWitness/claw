@@ -10,22 +10,25 @@ module Data.Primitive.ByteArray.Levenshtein
   , rate
   ) where
 
-import           Control.Monad.ST
+import           System.OsString.Custom
 
-import           Data.Text (Text)
-import qualified Data.Text.Array as Text
-import qualified Data.Text.Internal as Text
+import           Control.Monad.ST
+import           Data.ByteString.Short
 import           Data.Primitive.ByteArray
 import           Data.Primitive.PrimArray
 import           Data.Word
+import           System.OsString.Internal.Types
 
 
 
 -- | Creates the initial row.
 initialize
-  :: Text                 -- ^ Horizontal array.
+  :: OsString             -- ^ Horizontal array.
   -> ST x (PrimArray Int)
-initialize (Text.Text _ _ lenB) = do
+initialize input = do
+  let !(SBS _brr) = unify input
+      lenB = sizeofByteArray (ByteArray _brr)
+
   v <- newPrimArray (lenB + 1)
 
   let fill i
@@ -42,14 +45,15 @@ initialize (Text.Text _ _ lenB) = do
 iterate
   :: Int                    -- ^ Offset into the vertical slice.
   -> ByteArray              -- ^ Vertical slice.
-  -> Text                   -- ^ Horizontal array.
+  -> OsString               -- ^ Horizontal array.
   -> MutablePrimArray x Int -- ^ Mutable copy of the previous row.
   -> ST x (PrimArray Int)
-iterate posA arr (Text.Text (Text.ByteArray _brr) offB lenB) v0 = do
-  let brr = ByteArray _brr
+iterate posA arr input v0 = do
+  let !(SBS _brr) = unify input
+      brr = ByteArray _brr
 
       m = sizeofByteArray arr
-      n = lenB
+      n = sizeofByteArray brr
 
   v1 <- newPrimArray (n + 1)
 
@@ -69,7 +73,7 @@ iterate posA arr (Text.Text (Text.ByteArray _brr) offB lenB) v0 = do
                           insertionCost = ins + 1
 
                           a = indexByteArray arr i :: Word8
-                          b = indexByteArray brr (offB + j) :: Word8
+                          b = indexByteArray brr j :: Word8
 
                           substitutionCost | a == b    = sub
                                            | otherwise = sub + 1
@@ -87,5 +91,7 @@ iterate posA arr (Text.Text (Text.ByteArray _brr) offB lenB) v0 = do
 
 
 -- | Retrieves the edit distance for the current point.
-rate :: Text -> PrimArray Int -> Int
-rate (Text.Text _ _ lenB) arr = indexPrimArray arr lenB
+rate :: OsString -> PrimArray Int -> Int
+rate input arr =
+  let !(SBS _brr) = unify input
+  in indexPrimArray arr (sizeofByteArray (ByteArray _brr))

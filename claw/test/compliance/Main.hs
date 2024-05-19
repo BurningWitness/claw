@@ -5,8 +5,11 @@
 
 module Main where
 
+import           Data.String
 import           Data.List.NonEmpty
 import           System.Console.Options
+import           System.OsString (OsString)
+import qualified System.OsString as Os
 import           Test.Hspec
 import           Text.Read
 
@@ -18,6 +21,9 @@ deriving instance (Show a, Show b) => Show (Result a b)
 deriving instance Eq Name
 deriving instance Eq Failure
 deriving instance (Eq a, Eq b) => Eq (Result a b)
+
+instance IsString OsString where
+  fromString = Os.unsafeEncodeUtf
 
 
 
@@ -38,19 +44,29 @@ opts =
   .> Option (Short 'o' :| [Long "optional"]) ( optional ("NUM" :: String) $ \m s ->
                                                  case m of
                                                    Nothing -> Right $ s + 104
+                                                   Just xx ->
+                                                     case Os.decodeUtf xx of
+                                                       Nothing ->
+                                                         error "Optional argument is relayed improperly"
+
+                                                       Just x  ->
+                                                         case readMaybe x of
+                                                           Nothing -> Left NaN
+                                                           Just i  -> Right $ s + i
+                                             )
+
+  .> Option (Long "required" :| [Short 'r']) ( required ("NUM" :: String) $ \xx s ->
+                                                 case Os.decodeUtf xx of
+                                                   Nothing ->
+                                                     error "Required argument is relayed improperly"
+
                                                    Just x  ->
                                                      case readMaybe x of
                                                        Nothing -> Left NaN
                                                        Just i  -> Right $ s + i
                                              )
 
-  .> Option (Long "required" :| [Short 'r']) ( required ("NUM" :: String) $ \x s ->
-                                                 case readMaybe x of
-                                                   Nothing -> Left NaN
-                                                   Just i  -> Right $ s + i
-                                             )
-
-test :: Order -> [String] -> Result Breaker Int
+test :: Order -> [OsString] -> Result Breaker Int
 test order = run (decode order opts) 0
 
 

@@ -13,27 +13,27 @@ module Data.Console.Option.Internal
 
 import           Data.Functor.Identity
 import           Data.List.NonEmpty (NonEmpty)
-import           Data.Text (Text)
 import           Language.Haskell.TH.Syntax hiding (Name)
+import           System.OsString
 
 
 
 -- | Option name.
-data Name = Short !Char -- ^ As in @-s@.
-          | Long !Text  -- ^ As in @--long-option@.
+data Name = Short !Char    -- ^ As in @-s@.
+          | Long !OsString -- ^ As in @--long-option@.
 
 
 
 -- | Option behavior coupled with a function the option invokes.
 data Flavor m help f = Plain         (m f)
-                     | Optional help (m (Maybe String -> f))
-                     | Required help (m (String -> f))
+                     | Optional help (m (Maybe OsString -> f))
+                     | Required help (m (OsString -> f))
 
 
 
 data Pair f = Zero  f
-            | Maybe (Maybe String -> f)
-            | One   (String -> f)
+            | Maybe (Maybe OsString -> f)
+            | One   (OsString -> f)
 
 
 

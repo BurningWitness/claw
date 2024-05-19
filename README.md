@@ -1,5 +1,11 @@
 # claw
 
+> [!NOTE]
+> This branch is a feature-wise duplicate of the `master` one, rewritten to use
+> [`os-string#OsString`](https://hackage.haskell.org/package/os-string-2.0.2.2/docs/System-OsString.html#t:OsString)s.
+> It only works under GHC 9.10+ (unless GHC is compiled locally) and currently requires
+> CPP to get `getArgs` working across platforms (see either of the examples).
+
 Haskell libraries for managing command-line options.
 
 Divided in the following fashion:

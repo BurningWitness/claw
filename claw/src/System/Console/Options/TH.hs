@@ -57,6 +57,7 @@ import           Data.Console.Options.Strict.Internal
 
 import           Data.Functor.Identity
 import           Language.Haskell.TH.Syntax hiding (Name)
+import           System.OsString (OsString)
 
 
 
@@ -68,7 +69,7 @@ plain = Plain
 optional
   :: help                       -- ^ Help description for the argument,
                                 --   i.e. @ARG@ in @-o, --option[=ARG]@.
-  -> Code Q (Maybe String -> f)
+  -> Code Q (Maybe OsString -> f)
   -> Flavor (Code Q) help f
 optional = Optional
 
@@ -76,7 +77,7 @@ optional = Optional
 required
   :: help                   -- ^ Help description for the argument,
                             --   i.e. @ARG@ in @-o, --option=ARG@.
-  -> Code Q (String -> f)
+  -> Code Q (OsString -> f)
   -> Flavor (Code Q) help f
 required = Required
 

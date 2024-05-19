@@ -16,19 +16,20 @@ module Codec.Console.Options.Internal
   ) where
 
 import           Data.Console.Option.Internal
+import           System.OsString.Custom
 
 import           Data.Foldable (foldlM)
-import           Data.Text (Text)
-import qualified Data.Text as Text
+import           System.OsString (OsString)
+import qualified System.OsString as Os
 
 
 
 -- | Parsing error.
 data Failure = -- | Option name isn't on the list.
                Unrecognized
-                 !String -- ^ The argument that this option is a part of, without
-                         --   the preceding dash(es).
-                 !Name   -- ^ The option name in question.
+                 !OsString -- ^ The argument that this option is a part of, without
+                           --   the preceding dash(es).
+                 !Name     -- ^ The option name in question.
 
                -- | Option requires an argument, but none was provided.
              | Unsaturated
@@ -36,16 +37,16 @@ data Failure = -- | Option name isn't on the list.
 
                -- | Option takes no arguments, but was provided with one.
              | Oversaturated
-                 !Text   -- ^ Long option name, may be empty (consider @--=ARG@).
-                 !String -- ^ Argument passed to the option.
+                 !OsString -- ^ Long option name, may be empty (consider @--=ARG@).
+                 !OsString -- ^ Argument passed to the option.
 
 
 
 -- | Single decoding step, corresponding to processing 1-2 arguments.
 data Step f = -- | Parsed a standalone option.
               Single
-                f        -- ^ Option itself.
-                [String] -- ^ Rest of the argument list.
+                f          -- ^ Option itself.
+                [OsString] -- ^ Rest of the argument list.
 
               -- | Parsed a short option that is part of a group.
             | Multiple
@@ -54,12 +55,12 @@ data Step f = -- | Parsed a standalone option.
 
               -- | Parsed an argument.
             | Argument
-                String   -- ^ Argument itself.
-                [String] -- ^ Rest of the argument list.
+                OsString   -- ^ Argument itself.
+                [OsString] -- ^ Rest of the argument list.
 
               -- | Reached end of options successfully.
             | Done
-                [String] -- ^ Remaining non-option arguments, if any.
+                [OsString] -- ^ Remaining non-option arguments, if any.
 
               -- | Could not parse the argument.
             | Failed !Failure
@@ -68,34 +69,43 @@ data Step f = -- | Parsed a standalone option.
 step
   :: (Name -> Maybe (Pair f))
   -> Order
-  -> [String]
+  -> [OsString]
   -> Step f
 step lookupName order = go
   where
     go args =
       case args of
         []        -> Done []
-        this:rest ->
-          case this of
-            '-':'-':[]   -> Done rest
+        this:rest
+          | numWord this >= 2
+          , let {  a = Os.index this 0
+                ; !b = Os.index this 1
 
-            '-':'-':long -> let (as, bs) = span (/= '=') long
+                ; dash = Os.unsafeFromChar '-'
+                }
 
-                            in case bs of
-                                 []    -> let !txt = Text.pack long
-                                          in plainLong long txt rest
+          , a == dash ->
+              if b == dash
+                then if numWord this == 2
+                       then Done rest
+                       else
+                         case Os.elemIndex (Os.unsafeFromChar '=') this of
+                           Nothing -> let !name = Os.drop 2 this
+                                      in plainLong name rest
 
-                                 _:arg -> let !txt = Text.pack as
-                                          in argLong long txt arg rest
+                           Just i  -> let !name = unsafeSlice 2 (i - 2) this
+                                          !arg  = Os.drop (i + 1) this
 
-            '-':c:cs     -> someShort (c:cs) c cs rest
+                                      in argLong this name arg rest
 
-            _            -> argument this rest
+                else someShort this 1 b rest
+
+          | otherwise -> argument this rest
 
 
-    plainLong this txt args =
-      case lookupName (Long txt) of
-        Nothing   -> Failed $ Unrecognized this (Long txt)
+    plainLong name args =
+      case lookupName (Long name) of
+        Nothing   -> Failed $ Unrecognized name (Long name)
         Just pair ->
           case pair of
             Zero  m -> Single m args
@@ -104,48 +114,54 @@ step lookupName order = go
 
             One   m ->
               case args of
-                []        -> Failed $ Unsaturated (Long txt)
+                []        -> Failed $ Unsaturated (Long name)
                 next:rest -> Single (m next) rest
 
 
-    argLong this txt arg rest =
-      case lookupName (Long txt) of
-        Nothing   -> Failed $ if Text.null txt
-                                then Oversaturated txt arg
-                                else Unrecognized this (Long txt)
+    argLong this name arg rest =
+      case lookupName (Long name) of
+        Nothing   -> let !long = Os.drop 2 this
+                     in Failed $ if Os.null name
+                                   then Oversaturated name arg
+                                   else Unrecognized long (Long name)
         Just pair ->
           case pair of
-            Zero  _ -> Failed $ Oversaturated txt arg
+            Zero  _ -> Failed $ Oversaturated name arg
 
             Maybe m -> Single (m $ Just arg) rest
 
             One   m -> Single (m arg) rest
 
 
-    someShort this c cs args =
-      case lookupName (Short c) of
-        Nothing   -> Failed $ Unrecognized this (Short c)
-        Just pair ->
-          case pair of
-            Zero  m -> case cs of
-                         []   -> Single m args
-                         d:ds -> Multiple m (someShort this d ds args)
+    someShort this i c args =
+      let s = Short (Os.toChar c)
+      in case lookupName s of
+          Nothing   -> let !name = Os.drop 1 this
+                       in Failed $ Unrecognized name s
+          Just pair ->
+            let i' = i + 1
+            in case pair of
+                 Zero m
+                   | i' >= numWord this -> Single m args 
+                   | otherwise          ->
+                       let !d = Os.index this i'
+                       in Multiple m (someShort this i' d args)
 
-            Maybe m ->
-              let mayArg = case cs of
-                             [] -> Nothing
-                             _  -> Just cs
+                 Maybe m ->
+                   let !mayArg | i' >= numWord this = Nothing
+                               | otherwise          = Just $! Os.drop i' this
 
-              in Single (m mayArg) args
+                   in Single (m mayArg) args
 
-            One   m ->
-              case cs of
-                []  ->
-                  case args of
-                    []        -> Failed $ Unsaturated (Short c)
-                    next:rest -> Single (m next) rest
+                 One m
+                   | i' >= numWord this ->
+                       case args of
+                         []        -> Failed $ Unsaturated s
+                         next:rest -> Single (m next) rest
 
-                _:_ -> Single (m cs) args
+                   | otherwise           ->
+                       let !arg = Os.drop i' this
+                       in Single (m arg) args
 
 
     argument arg rest =
@@ -164,14 +180,14 @@ data Order = -- | First non-option marks the end of options
            | Permute
 
 -- | Decoding algorithm without any input applied.
-newtype Decoder f = Decoder ([String] -> Step f)
+newtype Decoder f = Decoder ([OsString] -> Step f)
 
 -- | General result type.
 data Result r s = -- | Reached end of options successfully.
                   --
                   --   Returns modified state and the list of non-option arguments
                   --   in the order they were encountered.
-                  Success s [String]
+                  Success s [OsString]
 
                   -- | Optional early exit.
                 | Break r
@@ -180,7 +196,7 @@ data Result r s = -- | Reached end of options successfully.
 
 {-# INLINE run #-}
 -- | Run the decoder over pure state, sequencing operations left-to-right.
-run :: Decoder (s -> Either r s) -> s -> [String] -> Result r s
+run :: Decoder (s -> Either r s) -> s -> [OsString] -> Result r s
 run (Decoder step_) = float []
   where
     float keep s0 args = go s0 (step_ args)
@@ -207,7 +223,7 @@ run (Decoder step_) = float []
 
 {-# INLINE runM #-}
 -- | Run the decoder over pure state, sequencing monadic operations left-to-right.
-runM :: Monad m => Decoder (s -> m (Either r s)) -> s -> [String] -> m (Result r s)
+runM :: Monad m => Decoder (s -> m (Either r s)) -> s -> [OsString] -> m (Result r s)
 runM (Decoder step_) = float []
   where
     float keep s0 args = go s0 (step_ args)
@@ -238,10 +254,10 @@ runM (Decoder step_) = float []
 -- | Run the decoder over pure state, applying the given function to every argument
 --   in place and sequencing operations left-to-right.
 runInOrder
-  :: (String -> s -> Either r s) -- ^ Function to apply to every argument.
+  :: (OsString -> s -> Either r s) -- ^ Function to apply to every argument.
   -> Decoder (s -> Either r s)
   -> s
-  -> [String]
+  -> [OsString]
   -> Result r s
 runInOrder fArg (Decoder step_) = \s args -> go s (step_ args)
   where

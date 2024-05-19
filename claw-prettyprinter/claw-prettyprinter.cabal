@@ -1,7 +1,7 @@
 cabal-version:       2.2
 
 name:                claw-prettyprinter
-version:             0.1.0.0
+version:             1.0.0.0
 synopsis:            claw + prettyprinter
 description:         Composing command-line help documents and rendering
                      parsing failures using prettyprinter.
@@ -25,9 +25,9 @@ library
   hs-source-dirs:   src
 
   build-depends:    base             >= 4.12 && < 5
-                  , claw             >= 0.1 && <= 0.2
+                  , claw             >= 1.0 && <= 1.1
+                  , os-string        >= 2 && < 3
                   , prettyprinter    >= 1.7 && <= 1.8
-                  , text             >= 2.0 && < 2.2
 
   ghc-options:      -Wall
 

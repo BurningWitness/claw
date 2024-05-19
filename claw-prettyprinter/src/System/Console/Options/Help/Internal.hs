@@ -2,16 +2,28 @@
            , OverloadedStrings #-}
 
 module System.Console.Options.Help.Internal
-  ( name
+  ( malformed
+  , name
   , option
   , description
   ) where
 
 import           Data.Console.Option
 import           Data.List.NonEmpty (NonEmpty (..))
-import qualified Data.Text as Text
 import           Prettyprinter
 import           Prettyprinter.Internal.Type
+import qualified System.OsString as Os
+import           System.OsString.Internal.Types
+
+
+
+malformed :: Doc ann
+malformed =
+  let kind = case coercionToPlatformTypes of
+               Left _  -> "16LE"
+               Right _ -> Char '8'
+
+  in "<malformed UTF-" <> kind <> " stream>"
 
 
 
@@ -19,11 +31,11 @@ import           Prettyprinter.Internal.Type
 --
 --   >>> putDocW 80 $ name (Short 'h')
 --   -h
---   >>> putDocW 80 $ name (Long 'long-foo')
+--   >>> putDocW 80 $ name (Long [osstr|'long-foo'|])
 --   --long-foo
 name :: Name -> Doc ann
 name (Short c) =  "-" <> pretty c
-name (Long ls) = "--" <> pretty ls
+name (Long ls) = "--" <> maybe malformed pretty (Os.decodeUtf ls)
 
 
 
@@ -77,5 +89,5 @@ description offset fracs opt@(Option (first :| _) _) doc =
                                        then fracs + (fracs - r)
                                        else fracs - r
 
-         in Union (Text spaces (Text.replicate spaces " ")) hardline <> doc
+         in Union (pretty $ replicate spaces ' ') hardline <> doc
     )

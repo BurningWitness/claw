@@ -5,11 +5,11 @@ module System.Console.Options.Internal
   ) where
 
 import           Data.Console.Option.Internal
+import           System.OsString.Custom
 
 import           Data.List
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Unsafe as Text
+import           System.OsString (OsString)
+import qualified System.OsString as Os
 
 
 
@@ -21,29 +21,30 @@ goldenRatio = 1.618034
 {-# INLINE makeSuggestions #-}
 makeSuggestions
   :: (Char -> Bool)
-  -> (Int -> Text -> [Name])
-  -> String
+  -> (Int -> OsString -> [Name])
+  -> OsString
   -> Name
   -> [Name]
 makeSuggestions hasShort suggestLong arg name =
-  let collectArg txt =
+  let collectArg =
         suggestLong
-          (floor $ logBase goldenRatio (fromIntegral $ Text.lengthWord8 txt))
-          txt
+          (floor $ logBase goldenRatio (fromIntegral $ numWord arg))
+          arg
 
   in case name of
        Short s ->
-            ( -- A short option or short group may be a mistyped long option
-              case arg of
-                c:_ | c == s -> -- find any long option 1-2 wide with the char in it
-                                suggestLong 1 (Text.singleton s <> Text.singleton s)
-                _            -> []
+            ( let c = Os.unsafeFromChar s
+              -- A short option or short group may be a mistyped long option
+              in if not (Os.null arg) && Os.index arg 0 == c
+                   then -- find any long option 1-2 wide with the char in it
+                        suggestLong 1 (doubleton c c)
+
+                   else []
             )
          <> ( -- Check (length argument >= 2), since (logBase goldenRatio 1 == 0)
-              case arg of
-                _:_:_ -> let !txt = Text.pack arg
-                         in collectArg txt
-                _     -> []
+              if numWord arg >= 2
+                then collectArg
+                else []
             )
 
        Long ls ->
@@ -52,24 +53,23 @@ makeSuggestions hasShort suggestLong arg name =
                | otherwise  =           acc
 
              collectLongs
-               | Text.length ls == 1 = suggestLong 1 (ls <> ls)
-               | otherwise           =
+               | numWord ls == 1 = let c = Os.index ls 0
+                                   in suggestLong 1 (doubleton c c)
+               | otherwise       =
                    suggestLong
-                     (floor $ logBase goldenRatio (fromIntegral $ Text.lengthWord8 ls))
+                     (floor $ logBase goldenRatio (fromIntegral $ numWord ls))
                      ls
 
          in ( -- A long option may be a mistyped short option or short group
-              if Text.length ls <= 5
-                then foldr suggestShort [] . nub $ Text.unpack ls
+              if numWord ls <= 5
+                then foldr suggestShort [] . nub . fmap Os.toChar $ Os.unpack ls
                 else []
             )
          <> ( -- Argument matches are only tried when the option name
               -- doesn't match, to avoid duplicate reports
               case collectLongs of
-                [] | let !txt = Text.pack arg
-                   , Text.lengthWord8 txt > Text.lengthWord8 ls ->
-                       collectArg txt
+                [] | numWord arg > numWord ls ->
+                       collectArg
                 
                 _ -> collectLongs
             )
-

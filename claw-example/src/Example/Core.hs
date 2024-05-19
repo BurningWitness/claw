@@ -11,6 +11,8 @@ import           Data.Char
 import           Data.Traversable
 import           System.Exit
 import           System.IO
+import           System.OsString (OsString)
+import qualified System.OsString as Os
 import           Numeric
 
 
@@ -51,7 +53,7 @@ print1 _     str = hPutStrLn stderr str
               
 
 
-execute :: Maybe Verbosity -> Maybe Base -> Maybe Operation -> [String] -> IO ()
+execute :: Maybe Verbosity -> Maybe Base -> Maybe Operation -> [OsString] -> IO ()
 execute mayVerbosity mayBase mayOperation args = do
   let verbosity = maybe Verbose1  id mayVerbosity
       base      = maybe (Base 10) id mayBase
@@ -62,8 +64,18 @@ execute mayVerbosity mayBase mayOperation args = do
 
   execute_ verbosity base operation args
 
-execute_ :: Verbosity -> Base -> Operation -> [String] -> IO ()
-execute_ verbosity base operation args = do
+execute_ :: Verbosity -> Base -> Operation -> [OsString] -> IO ()
+execute_ verbosity base operation rawArgs = do
+  args <- for (zip [1 :: Int ..] rawArgs) $ \(n, raw) ->
+            case Os.decodeUtf raw of
+              Nothing -> do
+                hPutStrLn stderr $
+                  showString "Argument in position " $ shows n " is not valid Unicode"
+
+                exitWith $ ExitFailure 1
+
+              Just cooked -> pure cooked
+
   when (null args) $ do
     print1 verbosity "No numbers were provided"
 

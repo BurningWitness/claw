@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings
+{-# LANGUAGE CPP
+           , OverloadedStrings
            , TemplateHaskell #-}
 
 module Main
@@ -8,21 +9,35 @@ module Main
 import           Example.Core
 import           Example.Options.TH
 
+import           Data.Coerce
 import qualified Data.Text.IO as Text
 import           Language.Haskell.TH.Syntax
 import           Prettyprinter
 import           Prettyprinter.Render.Text
 import           System.Console.Options.TH
 import           System.Console.Options.TH.Failure
-import           System.Environment
 import           System.IO
 import           System.Exit
+import           System.OsString.Internal.Types
+
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+import           System.Win32.WindowsString.Console
+#else
+import           System.Posix.Env.PosixString
+#endif
 
 
 
 main :: IO ()
 main = do
-  args <- getArgs
+  args <-
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+          (coerce :: IO [WindowsString] -> IO [OsString])
+#else
+          (coerce :: IO [PosixString] -> IO [OsString])
+#endif
+            getArgs
+
   example args
 
 
@@ -30,7 +45,7 @@ main = do
 options :: Options Identity (State -> Either Breaker State)
 options = $$(precompile optionsQ)
 
-example :: [String] -> IO ()
+example :: [OsString] -> IO ()
 example input = do
   case run (decode Permute options) defaultState input of
     Success (State mayBase mayOperation mayVerbosity) args ->

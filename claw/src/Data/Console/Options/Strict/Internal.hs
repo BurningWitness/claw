@@ -23,6 +23,7 @@ import           Data.Console.Option.Internal
 import qualified Data.Console.Options.Lazy.Internal as Lazy (Options (..))
 import qualified Data.Primitive.ByteArray.Levenshtein as Levenshtein
 import           System.Console.Options.Internal
+import           System.OsString.Custom
 
 import           Control.Monad
 import           Control.Monad.ST
@@ -40,9 +41,9 @@ import           Data.Radix1Tree.Word8.Strict (Radix1Tree)
 import qualified Data.Radix1Tree.Word8.Strict as Radix
 import qualified Data.Radix1Tree.Word8.Strict.TH as Radix
 import qualified Data.Radix1Tree.Word8.Strict.Unsafe as Radix
-import           Data.Text (Text)
-import qualified Data.Text as Text
 import           Language.Haskell.TH.Syntax hiding (Name)
+import           System.OsString (OsString)
+import qualified System.OsString as Os
 
 
 
@@ -88,7 +89,7 @@ lookup name (Options pat radix) =
   coerce $
     case name of
       Short s -> Patricia.lookup (fromIntegral $ fromEnum s) pat
-      Long ls -> Radix.lookup (unsafeFeedText ls) radix
+      Long ls -> Radix.lookup (unsafeFeedShortByteString (unify ls)) radix
 
 
 
@@ -140,32 +141,39 @@ insertShort verbosity c pair (Options pat radix) = do
 
 insertLong
   :: Verbosity
-  -> Text
+  -> OsString
   -> Code Q (Pair f)
   -> Options (Code Q) f
   -> Q (Options (Code Q) f)
-insertLong verbosity txt !pair (Options pat radix) = do
+insertLong verbosity name !pair (Options pat radix) = do
   case verbosity of
     Silent -> pure ()
     Warn   ->
-      let optionName = "Option \"--" <> Text.unpack txt <> ['"']
+      let rawName = case Os.decodeUtf name of
+                      Nothing  -> "<decodeUtf errored out>"
+                      Just raw -> raw
 
-      in if Text.null txt
+          optionName = "Option \"--" <> rawName <> ['"']
+
+      in if Os.null name
            then reportWarning $
                   optionName <> " is inaccessible"
 
            else do
-             when (Radix.member (unsafeFeedText txt) radix) $
+             when (Radix.member (unsafeFeedShortByteString (unify name)) radix) $
                reportWarning $
                  optionName <> " is mentioned multiple times"
 
-             when (Text.any (\c -> not (isPrint c) || isSpace c || c == '=') txt) $
+             when ( Os.any ( \_c -> let c = Os.toChar _c
+                                    in not (isPrint c) || isSpace c || c == '='
+                           ) name
+                  ) $
                reportWarning $
                  optionName <> " uses non-printable characters, spaces or '='"
 
   let !radix'
-         | Text.null txt = radix
-         | otherwise     = Radix.insert (unsafeFeedText txt) pair radix
+         | Os.null name = radix
+         | otherwise    = Radix.insert (unsafeFeedShortByteString (unify name)) pair radix
 
   pure $ Options pat radix'
 
@@ -173,7 +181,7 @@ insertLong verbosity txt !pair (Options pat radix) = do
 
 -- | Fuzzy search for 'System.Console.Options.TH.Unrecognized' options.
 suggestions
-  :: String             -- ^ Argument that the option name is a part of, without
+  :: OsString           -- ^ Argument that the option name is a part of, without
                         --   the preceding dash(es).
   -> Name               -- ^ Option name in question.
   -> Options Identity f
@@ -187,7 +195,7 @@ suggestions arg name (Options pat radix) =
 
 
 
-collectLevenshtein :: Int -> Text -> Radix1Tree a -> [Name]
+collectLevenshtein :: Int -> OsString -> Radix1Tree a -> [Name]
 collectLevenshtein cap input =
   let !r = runST $ Levenshtein.initialize input
 
@@ -204,7 +212,10 @@ collectLevenshtein cap input =
 
           in if Levenshtein.rate input v <= cap
                then case mx of
-                      Just _  -> Long (unsafeBuildText (Build1 $ b :/ arr)) : more
+                      Just _  ->
+                        Long (divide $ Radix.buildShortByteString (Build1 $ b :/ arr))
+                          : more
+
                       Nothing -> more
 
                else more

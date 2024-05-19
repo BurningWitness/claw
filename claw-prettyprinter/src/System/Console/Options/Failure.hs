@@ -12,8 +12,9 @@ module System.Console.Options.Failure
 
 import           System.Console.Options.Failure.Internal
 
-import           System.Console.Options
 import           Prettyprinter
+import           System.Console.Options
+import           System.OsString (OsString)
 
 
 
@@ -23,7 +24,7 @@ import           Prettyprinter
 --   >>> let opts = none .> Option names (plain id)
 --   >>> putDocW 80 $ failure opts $ Unrecognized "abid" (Long "abid")
 --   invalid option '--abid'; perhaps you meant any of '-a', '-b', '-i' or '--abode'?
-unrecognized :: Options Identity f -> String -> Name -> Doc ann
+unrecognized :: Options Identity f -> OsString -> Name -> Doc ann
 unrecognized opts = mkUnrecognized (\arg n -> suggestions arg n opts)
 
 

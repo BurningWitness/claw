@@ -8,15 +8,16 @@ module System.Console.Options.Failure.Internal
 
 import           System.Console.Options.Help.Internal
 
-import           Data.Text (Text)
 import           Prettyprinter
 import           Prettyprinter.Internal.Type
 import           System.Console.Options (Name)
+import           System.OsString (OsString)
+import qualified System.OsString as Os
 
 
 
 {-# INLINE mkUnrecognized #-}
-mkUnrecognized :: (String -> Name -> [Name]) -> String -> Name -> Doc ann
+mkUnrecognized :: (OsString -> Name -> [Name]) -> OsString -> Name -> Doc ann
 mkUnrecognized suggest arg n =
   "invalid option '" <> name n <> squote
     <> case suggest arg n of
@@ -53,11 +54,11 @@ unsaturated n = "option '" <> name n <> "' requires an argument"
 --   >>> oversaturated ""
 --   end of options delimiter '--' doesn't allow an argument
 oversaturated
-  :: Text    -- ^ Long option name, may be empty (consider @--=ARG@).
+  :: OsString -- ^ Long option name, may be empty (consider @--=ARG@).
   -> Doc ann
 oversaturated ls =
-     ( case ls of
-        "" -> "end of options delimiter '--"
-        _  -> "option '--" <> pretty ls
+     ( if Os.null ls
+         then "end of options delimiter '--"
+         else "option '--" <> maybe malformed pretty (Os.decodeUtf ls)
      )
   <> "' doesn't allow an argument"
