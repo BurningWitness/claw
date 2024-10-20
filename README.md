@@ -1,5 +1,17 @@
 # claw
 
+> [!CAUTION]
+> This branch blindly assumes that command-line arguments on POSIX-compliant platforms
+> are passed as UTF-8. This assumption is in fact incorrect.
+> However, the overwhelming majority of used encodings extend ASCII, so
+> it's *generally* safe to use this branch if all declared options are ASCII-compatible.
+>
+> Unfortunately making this library POSIX-compliant is at the current moment
+> near-impossible.  `os-string` provides neither the types to convert to, nor the
+> direct functions for efficiently encoding to and from Unicode. Handrolling all of this
+> functionality inside this package would make it unnecessarily brittle and would require
+> rigorous testing, so I choose to keep it in limbo for the time being.
+
 > [!NOTE]
 > This branch is a feature-wise duplicate of the `master` one, rewritten to use
 > [`os-string#OsString`](https://hackage.haskell.org/package/os-string-2.0.2.2/docs/System-OsString.html#t:OsString)s.
