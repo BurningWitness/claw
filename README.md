@@ -1,19 +1,24 @@
 # claw
 
+> [!IMPORTANT]
+> This branch is a dead end, preserved only for posterity.
+> Further development, including a proper fix to the encoding issue as described below,
+> is on the [`master`](https://github.com/BurningWitness/claw/tree/master) branch.
+
 > [!CAUTION]
 > This branch blindly assumes that command-line arguments on POSIX-compliant platforms
 > are passed as UTF-8. This assumption is in fact incorrect.
 > However, the overwhelming majority of used encodings extend ASCII, so
 > it's *generally* safe to use this branch if all declared options are ASCII-compatible.
 >
-> Unfortunately making this library POSIX-compliant is at the current moment
+> ~~Unfortunately making this library POSIX-compliant is at the current moment
 > near-impossible.  `os-string` provides neither the types to convert to, nor the
 > direct functions for efficiently encoding to and from Unicode. Handrolling all of this
 > functionality inside this package would make it unnecessarily brittle and would require
-> rigorous testing, so I choose to keep it in limbo for the time being.
+> rigorous testing, so I choose to keep it in limbo for the time being.~~
 
 > [!NOTE]
-> This branch is a feature-wise duplicate of the `master` one, rewritten to use
+> This branch is a feature-wise duplicate of the `master` one as of version `0.1`, rewritten to use
 > [`os-string#OsString`](https://hackage.haskell.org/package/os-string-2.0.2.2/docs/System-OsString.html#t:OsString)s.
 > It only works under GHC 9.10+ (unless GHC is compiled locally) and currently requires
 > CPP to get `getArgs` working across platforms (see either of the examples).
