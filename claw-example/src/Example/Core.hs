@@ -8,9 +8,11 @@ module Example.Core
 
 import           Control.Monad
 import           Data.Char
+import qualified Data.List as List
 import           Data.Traversable
 import           System.Exit
 import           System.IO
+import           System.OsPath (OsString, decodeFS)
 import           Numeric
 
 
@@ -51,7 +53,7 @@ print1 _     str = hPutStrLn stderr str
               
 
 
-execute :: Maybe Verbosity -> Maybe Base -> Maybe Operation -> [String] -> IO ()
+execute :: Maybe Verbosity -> Maybe Base -> Maybe Operation -> [OsString] -> IO ()
 execute mayVerbosity mayBase mayOperation args = do
   let verbosity = maybe Verbose1  id mayVerbosity
       base      = maybe (Base 10) id mayBase
@@ -62,12 +64,13 @@ execute mayVerbosity mayBase mayOperation args = do
 
   execute_ verbosity base operation args
 
-execute_ :: Verbosity -> Base -> Operation -> [String] -> IO ()
+execute_ :: Verbosity -> Base -> Operation -> [OsString] -> IO ()
 execute_ verbosity base operation args = do
   when (null args) $ do
     print1 verbosity "No numbers were provided"
 
-  nums <- for (zip [1 :: Int ..] args) $ \(n, str) ->
+  nums <- for (zip [1 :: Int ..] args) $ \(n, raw) -> do
+            str <- decodeFS raw
             case parseNumber base str of
               Nothing -> do
                 hPutStrLn stderr $
@@ -105,11 +108,14 @@ applyOperation op nums =
       | length nums == 0 -> 0
       | otherwise        -> sum (fromIntegral <$> nums) / fromIntegral (length nums)
 
-    Median
-      | odd (length nums)
-      , i:_ <- drop (quot (length nums) 2) nums -> fromIntegral i
+    Median  ->
+      let nums' = List.sort nums
 
-      | otherwise                ->
-          case drop (quot (length nums) 2 - 1) nums of
-            i:j:_ -> (fromIntegral i + fromIntegral j) / 2
-            _     -> 0
+      in case () of
+           () | odd (length nums')
+              , i:_ <- drop (quot (length nums') 2) nums' -> fromIntegral i
+
+              | otherwise                ->
+                  case drop (quot (length nums') 2 - 1) nums' of
+                    i:j:_ -> (fromIntegral i + fromIntegral j) / 2
+                    _     -> 0

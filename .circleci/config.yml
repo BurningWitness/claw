@@ -1,27 +1,35 @@
 version: 2.1
 
+orbs:
+  win: circleci/windows@5.1.0
+
 jobs:
-  build:
+  build-linux:
     machine:
       image: ubuntu-2004:current
+
     resource_class: medium
+
     parameters:
       cabal:
         type: string
       ghc:
         type: string
+
     steps:
       - checkout
+
       - restore_cache:
           name: Restore
           key: linux-<< parameters.ghc >>-{{ checksum "claw/claw.cabal" }}
+
       - run:
           name: Install GHC
           command: |
             curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_MINIMAL=1 sh
 
-            PATH=$HOME/.ghcup/bin:$PATH
-            echo 'export PATH=$HOME/.ghcup/bin:$PATH' >> $BASH_ENV
+            source /home/circleci/.ghcup/env
+            echo 'source /home/circleci/.ghcup/env' >> $BASH_ENV
 
             ghcup install cabal << parameters.cabal >>
             ghcup set cabal << parameters.cabal >>
@@ -32,35 +40,83 @@ jobs:
       - run:
           name: Update Dependencies
           command: cabal new-update
+
       - run:
           name: Build
           command: cabal new-build all --enable-tests
+
       - save_cache:
           name: Cache
           key: linux-<< parameters.ghc >>-{{ checksum "claw/claw.cabal" }}
           paths:
-            - "/root/.cabal"
             - "dist-newstyle"
       - run:
           name: Test
-          command: cabal new-test claw:test:compliance --test-show-details=streaming
+          command: cabal new-test claw:test:compliance
+
+
+  build-windows:
+    executor: win/default
+
+    parameters:
+      cabal:
+        type: string
+      ghc:
+        type: string
+
+    steps:
+      - checkout
+
+      - restore_cache:
+          name: Restore
+          key: windows-<< parameters.ghc >>-{{ checksum "claw/claw.cabal" }}
+
+      - run:
+          name: Install GHC
+          shell: bash.exe
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_MINIMAL=1 sh
+
+            source /c/ghcup/env
+            echo 'source /c/ghcup/env' >> $BASH_ENV
+
+            ghcup install cabal << parameters.cabal >>
+            ghcup set cabal << parameters.cabal >>
+
+            ghcup install ghc << parameters.ghc >>
+            ghcup set ghc << parameters.ghc >>
+
+      - run:
+          name: Update Dependencies
+          shell: bash.exe
+          command: cabal new-update
+
+      - run:
+          name: Build
+          shell: bash.exe
+          command: cabal new-build all --enable-tests
+
+      - save_cache:
+          name: Cache
+          key: windows-<< parameters.ghc >>-{{ checksum "claw/claw.cabal" }}
+          paths:
+            - "dist-newstyle"
+      - run:
+          name: Test
+          shell: bash.exe
+          command: cabal new-test claw:test:compliance
 
 
 
 workflows:
   workflow:
     jobs:
-      - build:
-          name: linux-9.2.7
-          cabal: 3.6.2.0
-          ghc: 9.2.7
+      - build-linux:
+          name: linux-9.10.2
+          cabal: 3.16.0.0
+          ghc: 9.10.2
 
-      - build:
-          name: linux-9.4.8
-          cabal: 3.6.2.0
-          ghc: 9.4.8
-
-      - build:
-          name: linux-9.6.4
-          cabal: 3.6.2.0
-          ghc: 9.6.4
+      - build-windows:
+          name: windows-9.10.2
+          cabal: 3.16.0.0
+          ghc: 9.10.2

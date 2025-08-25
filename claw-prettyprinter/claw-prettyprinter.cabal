@@ -1,7 +1,7 @@
 cabal-version:       2.2
 
 name:                claw-prettyprinter
-version:             0.1.0.0
+version:             0.2.0.0
 synopsis:            claw + prettyprinter
 description:         Composing command-line help documents and rendering
                      parsing failures using prettyprinter.
@@ -15,19 +15,17 @@ extra-doc-files:     CHANGELOG.md
                      README.md
 
 library
-  exposed-modules:  System.Console.Options.Failure
-                    System.Console.Options.Help
-                    System.Console.Options.TH.Failure
+  exposed-modules:  Data.Console.Options.Help
 
-  other-modules:    System.Console.Options.Failure.Internal
-                    System.Console.Options.Help.Internal
+                    System.Console.Options.Failure
 
   hs-source-dirs:   src
 
   build-depends:    base             >= 4.12 && < 5
-                  , claw             >= 0.1 && <= 0.2
-                  , prettyprinter    >= 1.7 && <= 1.8
-                  , text             >= 2.0 && < 2.2
+                  , bytestring       >= 0.12 && < 0.13
+                  , claw             >= 0.2 && < 0.3
+                  , prettyprinter    >= 1.7 && < 1.8
+                  , text-short       >= 0.1.6 && < 0.2
 
   ghc-options:      -Wall
 
@@ -37,4 +35,4 @@ library
 
 source-repository head
   type: git
-  location: git://github.com/BurningWitness/claw.git
+  location: https://github.com/BurningWitness/claw

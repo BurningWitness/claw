@@ -1,8 +1,7 @@
 cabal-version:       2.2
 
 name:                claw
-version:             0.1.0.0
-x-revision:          1
+version:             0.2.0.0
 synopsis:            Command-line options
 description:         Ruthless minimal command-line option parser.
 license:             BSD-3-Clause
@@ -17,28 +16,25 @@ extra-doc-files:     CHANGELOG.md
 library
   exposed-modules:  Codec.Console.Options
 
-                    Data.Console.Option
+                    Data.Console.Options
 
                     System.Console.Options
-                    System.Console.Options.TH
 
-  other-modules:    Codec.Console.Options.Internal
-                    
-                    Data.Console.Option.Internal
-                    Data.Console.Options.Lazy.Internal
-                    Data.Console.Options.Strict.Internal
+  other-modules:    Data.Console.Option.Internal
+                    Data.Console.Options.Internal
 
                     Data.Primitive.ByteArray.Levenshtein
-
-                    System.Console.Options.Internal
 
   hs-source-dirs:   src
 
   build-depends:    base             >= 4.12 && < 5
+                  , bytestring       >= 0.12 && < 0.13
+                  , filepath         >= 1.5 && < 1.6
+                  , os-string        >= 2.0.5 && < 3
                   , primitive        >= 0.7 && < 0.10
                   , radix-tree       >= 1 && < 1.2
                   , template-haskell >= 2.17 && < 3
-                  , text             >= 2.0 && < 2.2
+                  , text-short       >= 0.1.6 && < 0.2
 
   ghc-options:      -Wall
 
@@ -49,11 +45,19 @@ test-suite compliance
 
   main-is:          Main.hs
 
+  other-modules:    Test.Codec
+                    Test.System
+
   hs-source-dirs:   test/compliance
 
   build-depends:    base
-                  , hspec >= 2.0 && <= 2.12
+                  , bytestring
                   , claw
+                  , filepath
+                  , hspec            >= 2.0 && < 2.12
+                  , os-string
+                  , template-haskell
+                  , text-short
 
   ghc-options:      -Wall
 
@@ -63,4 +67,4 @@ test-suite compliance
 
 source-repository head
   type: git
-  location: git://github.com/BurningWitness/claw.git
+  location: https://github.com/BurningWitness/claw

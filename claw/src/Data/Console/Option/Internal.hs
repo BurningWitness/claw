@@ -1,4 +1,5 @@
-{-# LANGUAGE TemplateHaskellQuotes #-}
+{-# LANGUAGE GADTs
+           , TemplateHaskell #-}
 
 module Data.Console.Option.Internal
   ( Name (..)
@@ -6,53 +7,65 @@ module Data.Console.Option.Internal
   , Flavor (..)
   , Option (..)
 
-  , Pair (..)
+  , Function (..)
   , demote
   , demoteQ
   ) where
 
-import           Data.Functor.Identity
-import           Data.List.NonEmpty (NonEmpty)
-import           Data.Text (Text)
+import           Data.Text.Short (ShortText)
 import           Language.Haskell.TH.Syntax hiding (Name)
+import           System.OsString (OsString)
 
 
 
 -- | Option name.
-data Name = Short !Char -- ^ As in @-s@.
-          | Long !Text  -- ^ As in @--long-option@.
+data Name = Short !Char     -- ^ As in @-s@.
+          | Long !ShortText -- ^ As in @--long-option@.
 
 
 
--- | Option behavior coupled with a function the option invokes.
-data Flavor m help f = Plain         (m f)
-                     | Optional help (m (Maybe String -> f))
-                     | Required help (m (String -> f))
+-- | Option behavior.
+data Flavor help f arg where
+  -- | Option takes no arguments.
+  Plain :: Flavor help f f
 
+  -- | Option takes an optional argument.
+  Optional
+    :: help                                -- ^ Help description for the argument,
+                                           -- i.e. ARG in -o, --option[=ARG].
+    -> Flavor help f (Maybe OsString -> f)
 
-
-data Pair f = Zero  f
-            | Maybe (Maybe String -> f)
-            | One   (String -> f)
-
-
-
-{-# INLINE demote #-}
-demote :: Flavor Identity help f -> Pair f
-demote (Plain      (Identity f)) = Zero  f
-demote (Optional _ (Identity f)) = Maybe f
-demote (Required _ (Identity f)) = One   f
-
-{-# INLINE demoteQ #-}
-demoteQ :: Flavor (Code Q) help f -> Code Q (Pair f)
-demoteQ (Plain      f) = [|| Zero  $$(f) ||]
-demoteQ (Optional _ f) = [|| Maybe $$(f) ||]
-demoteQ (Required _ f) = [|| One   $$(f) ||]
+  -- | Option requires an argument.
+  Required
+    :: help                                -- ^ Help description for the argument,
+                                           -- i.e. ARG in -o, --option[=ARG].
+    -> Flavor help f (OsString -> f)
 
 
 
 -- | Single option.
-data Option m help f =
+data Option help f arg =
        Option
-         {-# UNPACK #-} !(NonEmpty Name) -- ^ Names which can be used to invoke the option.
-         {-# UNPACK #-} !(Flavor m help f)
+         [Name]              -- ^ Names that can be used to invoke the option.
+         (Flavor help f arg)
+
+
+
+data Function f where
+  Zero  :: f -> Function f
+  Maybe :: (Maybe OsString -> f) -> Function f
+  One   :: (OsString -> f) -> Function f
+
+demote :: Flavor help f arg -> arg -> Function f
+demote flavor f =
+  case flavor of
+    Plain      -> Zero f
+    Optional _ -> Maybe f
+    Required _ -> One f
+
+demoteQ :: Flavor help f arg -> Code Q arg -> Code Q (Function f)
+demoteQ flavor f =
+  case flavor of
+    Plain      -> [|| Zero  $$f ||]
+    Optional _ -> [|| Maybe $$f ||]
+    Required _ -> [|| One   $$f ||]
