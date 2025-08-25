@@ -1,0 +1,383 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="annot"><span class="hs-comment">{- | Command-line argument decoder.
+ -}</span></span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Codec.Console.Options.html"><span class="hs-identifier">Codec.Console.Options</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Decode</span></span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Codec.Console.Options.html#Decoder"><span class="hs-identifier">Decoder</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Console.Options.html#ShortDecoder"><span class="hs-identifier">ShortDecoder</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Console.Options.html#decode"><span class="hs-identifier">decode</span></a></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteString.Short</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ShortByteString</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Short</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SB</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Coerce</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Primitive.ByteArray</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text.Short</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ShortText</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Short.Unsafe</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ST</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Base</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafeChr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.OsString.Internal.Types</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="annot"><span class="hs-comment">-- | Argument decoder.</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">data</span><span> </span><span id="Decoder"><span class="annot"><a href="Codec.Console.Options.html#Decoder"><span class="hs-identifier hs-var">Decoder</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | Short option group.</span></span><span>
+</span><span id="line-28"></span><span>               </span><span id="Short"><span class="annot"><a href="Codec.Console.Options.html#Short"><span class="hs-identifier hs-var">Short</span></a></span></span><span>
+</span><span id="line-29"></span><span>                 </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ Option name.</span></span><span>
+</span><span id="line-30"></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">OsString</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Option argument as remainder of the group.</span></span><span>
+</span><span id="line-31"></span><span>                 </span><span class="annot"><a href="Codec.Console.Options.html#ShortDecoder"><span class="hs-identifier hs-type">ShortDecoder</span></a></span><span>     </span><span class="annot"><span class="hs-comment">-- ^ Next short option in the group.</span></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span>               </span><span class="annot"><span class="hs-comment">-- | Long option.</span></span><span>
+</span><span id="line-34"></span><span>             </span><span class="hs-glyph">|</span><span> </span><span id="Long"><span class="annot"><a href="Codec.Console.Options.html#Long"><span class="hs-identifier hs-var">Long</span></a></span></span><span>
+</span><span id="line-35"></span><span>                 </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">ShortText</span></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ Option name.</span></span><span>
+</span><span id="line-36"></span><span>                 </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">OsString</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Option argument.</span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span>               </span><span class="annot"><span class="hs-comment">-- | Non-option argument.</span></span><span>
+</span><span id="line-39"></span><span>             </span><span class="hs-glyph">|</span><span> </span><span id="Argument"><span class="annot"><a href="Codec.Console.Options.html#Argument"><span class="hs-identifier hs-var">Argument</span></a></span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span>               </span><span class="annot"><span class="hs-comment">-- | End of options (@--@).</span></span><span>
+</span><span id="line-42"></span><span>             </span><span class="hs-glyph">|</span><span> </span><span id="End"><span class="annot"><a href="Codec.Console.Options.html#End"><span class="hs-identifier hs-var">End</span></a></span></span><span>
+</span><span id="line-43"></span><span>                 </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">OsString</span></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- ^ @--=ARG@ is still a possible</span><span>
+</span><span id="line-44"></span><span>                                   </span><span class="hs-comment">--   (albeit invalid) sequence.</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span>               </span><span class="hs-comment">-- | Argument begins with a hyphen,</span><span>
+</span><span id="line-47"></span><span>               </span><span class="hs-comment">--   but some characters could not be decoded.</span><span>
+</span><span id="line-48"></span><span>             </span><span class="hs-glyph">|</span><span> </span><span id="Undecodable"><span class="annot"><a href="Codec.Console.Options.html#Undecodable"><span class="hs-identifier hs-var">Undecodable</span></a></span></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="annot"><span class="hs-comment">-- | Short option group decoder.</span></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">data</span><span> </span><span id="ShortDecoder"><span class="annot"><a href="Codec.Console.Options.html#ShortDecoder"><span class="hs-identifier hs-var">ShortDecoder</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | Next short option.</span></span><span>
+</span><span id="line-54"></span><span>                    </span><span id="Short%27"><span class="annot"><a href="Codec.Console.Options.html#Short%27"><span class="hs-identifier hs-var">Short'</span></a></span></span><span>
+</span><span id="line-55"></span><span>                      </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ Option name.</span></span><span>
+</span><span id="line-56"></span><span>                      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">OsString</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ Option argument as remainder of the group.</span></span><span>
+</span><span id="line-57"></span><span>                      </span><span class="annot"><a href="Codec.Console.Options.html#ShortDecoder"><span class="hs-identifier hs-type">ShortDecoder</span></a></span><span>     </span><span class="annot"><span class="hs-comment">-- ^ Next short option in the group.</span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span>                    </span><span class="annot"><span class="hs-comment">-- | End of group.</span></span><span>
+</span><span id="line-60"></span><span>                  </span><span class="hs-glyph">|</span><span> </span><span id="End%27"><span class="annot"><a href="Codec.Console.Options.html#End%27"><span class="hs-identifier hs-var">End'</span></a></span></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span>                    </span><span class="annot"><span class="hs-comment">-- | Short option character could not be decoded.</span></span><span>
+</span><span id="line-63"></span><span>                  </span><span class="hs-glyph">|</span><span> </span><span id="Undecodable%27"><span class="annot"><a href="Codec.Console.Options.html#Undecodable%27"><span class="hs-identifier hs-var">Undecodable'</span></a></span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="annot"><span class="hs-comment">-- | Check that the byte is in POSIX Portable Character Set.</span></span><span>
+</span><span id="line-68"></span><span class="annot"><a href="Codec.Console.Options.html#isPortable"><span class="hs-identifier hs-type">isPortable</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-69"></span><span id="isPortable"><span class="annot"><span class="annottext">isPortable :: Word8 -&gt; Bool
+</span><a href="Codec.Console.Options.html#isPortable"><span class="hs-identifier hs-var hs-var">isPortable</span></a></span></span><span> </span><span id="local-6989586621679070308"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679070308"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679070308"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679070308"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x07</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679070308"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x0D</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679070308"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x20</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679070308"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x7E</span></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-comment">{-
+Note [Slicing raw command-line arguments]
+-----------------------------------------
+Per POSIX specification we can't really know what encoding
+any particular OsString comes in, that's why the entire
+roundtripping locale reencoding (decodeFS) process is in place.
+Thankfully the specification also states each encoded portable
+character is guaranteed to take up only one byte (Chapter 6.1),
+for that reason we only work with the portable set.
+
+Under Windows the encoding is guaranteed to be UTF-16[LE],
+all portable characters there are two bytes wide.
+-}</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- | Interpret a single argument.</span><span>
+</span><span id="line-90"></span><span class="hs-comment">--</span><span>
+</span><span id="line-91"></span><span class="hs-comment">--   Decoded option names are guaranteed to only contain characters in</span><span>
+</span><span id="line-92"></span><span class="hs-comment">--   the POSIX Portable Character Set.</span><span>
+</span><span id="line-93"></span><span class="hs-comment">--</span><span>
+</span><span id="line-94"></span><span class="hs-comment">--   Requires the same argument in two forms.</span><span>
+</span><span id="line-95"></span><span class="annot"><a href="Codec.Console.Options.html#decode"><span class="hs-identifier hs-type">decode</span></a></span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ @True@ for Windows, @False@ for POSIX.</span></span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ Unwrapped @WindowsString@/@PosixString@.</span></span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ WTF-8 byte array (same encoding as 'FilePath').</span></span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Console.Options.html#Decoder"><span class="hs-identifier hs-type">Decoder</span></a></span><span>
+</span><span id="line-100"></span><span id="decode"><span class="annot"><span class="annottext">decode :: Bool -&gt; ByteArray -&gt; ShortByteString -&gt; Decoder
+</span><a href="Codec.Console.Options.html#decode"><span class="hs-identifier hs-var hs-var">decode</span></a></span></span><span> </span><span id="local-6989586621679070313"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679070313"><span class="hs-identifier hs-var">isWindows</span></a></span></span><span> </span><span id="local-6989586621679070314"><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679070314"><span class="hs-identifier hs-var">raw</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span> </span><span id="local-6989586621679070316"><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679070316"><span class="hs-identifier hs-var">arr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070317"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-102"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Decoder
+</span><a href="Codec.Console.Options.html#Argument"><span class="hs-identifier hs-var">Argument</span></a></span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-keyword">else</span><span>
+</span><span id="line-104"></span><span>         </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ByteArray -&gt; Int -&gt; Word8
+forall a. Prim a =&gt; ByteArray -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">indexByteArray</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679070316"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-105"></span><span>           </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x2D</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-106"></span><span>             </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ByteArray -&gt; Int -&gt; Word8
+forall a. Prim a =&gt; ByteArray -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">indexByteArray</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679070316"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-107"></span><span>               </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x2D</span></span><span>
+</span><span id="line-108"></span><span>                 </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070317"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe OsString -&gt; Decoder
+</span><a href="Codec.Console.Options.html#End"><span class="hs-identifier hs-var">End</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe OsString
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-109"></span><span>                 </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-110"></span><span>                     </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ByteArray -&gt; Int -&gt; Word8
+forall a. Prim a =&gt; ByteArray -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">indexByteArray</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679070316"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-111"></span><span>                       </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x3D</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe OsString -&gt; Decoder
+</span><a href="Codec.Console.Options.html#End"><span class="hs-identifier hs-var">End</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">OsString -&gt; Maybe OsString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(OsString -&gt; Maybe OsString) -&gt; OsString -&gt; Maybe OsString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; OsString
+forall {b}. Coercible b ByteArray =&gt; Int -&gt; b
+</span><a href="#local-6989586621679070321"><span class="hs-identifier hs-var">cutArgument</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>                       </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier">_</span></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Decoder
+</span><a href="#local-6989586621679070322"><span class="hs-identifier hs-var">decodeLong</span></a></span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span>               </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ShortDecoder
+</span><a href="#local-6989586621679070323"><span class="hs-identifier hs-var">decodeShort</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-115"></span><span>                      </span><span class="annot"><a href="Codec.Console.Options.html#Short%27"><span class="hs-identifier hs-type">Short'</span></a></span><span> </span><span id="local-6989586621679070324"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070324"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span id="local-6989586621679070325"><span class="annot"><span class="annottext">Maybe OsString
+</span><a href="#local-6989586621679070325"><span class="hs-identifier hs-var">rest</span></a></span></span><span> </span><span id="local-6989586621679070326"><span class="annot"><span class="annottext">ShortDecoder
+</span><a href="#local-6989586621679070326"><span class="hs-identifier hs-var">next</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Maybe OsString -&gt; ShortDecoder -&gt; Decoder
+</span><a href="Codec.Console.Options.html#Short"><span class="hs-identifier hs-var">Short</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070324"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe OsString
+</span><a href="#local-6989586621679070325"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="annot"><span class="annottext">ShortDecoder
+</span><a href="#local-6989586621679070326"><span class="hs-identifier hs-var">next</span></a></span><span>
+</span><span id="line-116"></span><span>                      </span><span class="annot"><span class="annottext">ShortDecoder
+</span><a href="Codec.Console.Options.html#Undecodable%27"><span class="hs-identifier hs-var">Undecodable'</span></a></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Decoder
+</span><a href="Codec.Console.Options.html#Undecodable"><span class="hs-identifier hs-var">Undecodable</span></a></span><span>
+</span><span id="line-117"></span><span>                      </span><span class="annot"><span class="annottext">ShortDecoder
+</span><a href="Codec.Console.Options.html#End%27"><span class="hs-identifier hs-var">End'</span></a></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Decoder
+</span><a href="Codec.Console.Options.html#Undecodable"><span class="hs-identifier hs-var">Undecodable</span></a></span><span> </span><span class="hs-comment">-- impossible</span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span>           </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-identifier">_</span></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Decoder
+</span><a href="Codec.Console.Options.html#Argument"><span class="hs-identifier hs-var">Argument</span></a></span><span>
+</span><span id="line-120"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-121"></span><span>    </span><span id="local-6989586621679070317"><span class="annot"><span class="annottext">len :: Int
+</span><a href="#local-6989586621679070317"><span class="hs-identifier hs-var hs-var">len</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteArray -&gt; Int
+</span><span class="hs-identifier hs-var">sizeofByteArray</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679070316"><span class="hs-identifier hs-var">arr</span></a></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span> </span><span id="local-6989586621679070328"><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679070328"><span class="hs-identifier hs-var">arr2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ShortByteString -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">SB.drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteArray -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">ShortByteString</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679070316"><span class="hs-identifier hs-var">arr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span>    </span><span id="local-6989586621679070322"><span class="annot"><span class="annottext">decodeLong :: Decoder
+</span><a href="#local-6989586621679070322"><span class="hs-identifier hs-var hs-var">decodeLong</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-127"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; ShortByteString -&gt; Maybe Int
+</span><span class="hs-identifier hs-var">SB.elemIndex</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x3D</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteArray -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">ShortByteString</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679070328"><span class="hs-identifier hs-var">arr2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-128"></span><span>        </span><span class="annot"><span class="annottext">Maybe Int
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-129"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; Bool) -&gt; ShortByteString -&gt; Bool
+</span><span class="hs-identifier hs-var">SB.all</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Bool
+</span><a href="Codec.Console.Options.html#isPortable"><span class="hs-identifier hs-var">isPortable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteArray -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">ShortByteString</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679070328"><span class="hs-identifier hs-var">arr2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-130"></span><span>              </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679070336"><span class="annot"><span class="annottext">long :: ShortText
+</span><a href="#local-6989586621679070336"><span class="hs-identifier hs-var hs-var">long</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; ShortText
+</span><span class="hs-identifier hs-var">ST.fromShortByteStringUnsafe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteArray -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">ShortByteString</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679070328"><span class="hs-identifier hs-var">arr2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>              </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; Maybe OsString -&gt; Decoder
+</span><a href="Codec.Console.Options.html#Long"><span class="hs-identifier hs-var">Long</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679070336"><span class="hs-identifier hs-var">long</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe OsString
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Decoder
+</span><a href="Codec.Console.Options.html#Undecodable"><span class="hs-identifier hs-var">Undecodable</span></a></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679070338"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070338"><span class="hs-identifier hs-var">i</span></a></span></span><span>
+</span><span id="line-136"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; Bool) -&gt; ShortByteString -&gt; Bool
+</span><span class="hs-identifier hs-var">SB.all</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Bool
+</span><a href="Codec.Console.Options.html#isPortable"><span class="hs-identifier hs-var">isPortable</span></a></span><span> </span><span class="annot"><span class="annottext">(ShortByteString -&gt; Bool) -&gt; ShortByteString -&gt; Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ShortByteString -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">SB.take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070338"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteArray -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">ShortByteString</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679070328"><span class="hs-identifier hs-var">arr2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-137"></span><span>              </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679070340"><span class="annot"><span class="annottext">long :: ShortText
+</span><a href="#local-6989586621679070340"><span class="hs-identifier hs-var hs-var">long</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; ShortText
+</span><span class="hs-identifier hs-var">ST.fromShortByteStringUnsafe</span></span><span> </span><span class="annot"><span class="annottext">(ShortByteString -&gt; ShortText) -&gt; ShortByteString -&gt; ShortText
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-138"></span><span>                            </span><span class="annot"><span class="annottext">Int -&gt; ShortByteString -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">SB.take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070338"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteArray -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">ShortByteString</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679070328"><span class="hs-identifier hs-var">arr2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span>              </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; Maybe OsString -&gt; Decoder
+</span><a href="Codec.Console.Options.html#Long"><span class="hs-identifier hs-var">Long</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679070340"><span class="hs-identifier hs-var">long</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">OsString -&gt; Maybe OsString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(OsString -&gt; Maybe OsString) -&gt; OsString -&gt; Maybe OsString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; OsString
+forall {b}. Coercible b ByteArray =&gt; Int -&gt; b
+</span><a href="#local-6989586621679070321"><span class="hs-identifier hs-var">cutArgument</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070338"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Decoder
+</span><a href="Codec.Console.Options.html#Undecodable"><span class="hs-identifier hs-var">Undecodable</span></a></span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span>    </span><span id="local-6989586621679070323"><span class="annot"><span class="annottext">decodeShort :: Int -&gt; ShortDecoder
+</span><a href="#local-6989586621679070323"><span class="hs-identifier hs-var hs-var">decodeShort</span></a></span></span><span> </span><span id="local-6989586621679070343"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070343"><span class="hs-identifier hs-var">i</span></a></span></span><span>
+</span><span id="line-146"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070343"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070317"><span class="hs-identifier hs-var">len</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortDecoder
+</span><a href="Codec.Console.Options.html#End%27"><span class="hs-identifier hs-var">End'</span></a></span><span>
+</span><span id="line-147"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-148"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679070345"><span class="annot"><span class="annottext">w :: Word8
+</span><a href="#local-6989586621679070345"><span class="hs-identifier hs-var hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteArray -&gt; Int -&gt; Word8
+forall a. Prim a =&gt; ByteArray -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">indexByteArray</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679070316"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070343"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-149"></span><span>          </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; Bool -&gt; Bool
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Bool
+</span><a href="Codec.Console.Options.html#isPortable"><span class="hs-identifier hs-var">isPortable</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679070345"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-150"></span><span>               </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">ShortDecoder
+</span><a href="Codec.Console.Options.html#Undecodable%27"><span class="hs-identifier hs-var">Undecodable'</span></a></span><span>
+</span><span id="line-151"></span><span>               </span><span class="hs-keyword">else</span><span>
+</span><span id="line-152"></span><span>                    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679070350"><span class="annot"><span class="annottext">c :: Char
+</span><a href="#local-6989586621679070350"><span class="hs-identifier hs-var hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Char
+</span><span class="hs-identifier hs-var">unsafeChr</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Char) -&gt; Int -&gt; Char
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679070345"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span>                        </span><span class="hs-glyph">!</span><span id="local-6989586621679070353"><span class="annot"><span class="annottext">i' :: Int
+</span><a href="#local-6989586621679070353"><span class="hs-identifier hs-var hs-var">i'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070343"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span>                        </span><span id="local-6989586621679070354"><span class="annot"><span class="annottext">next :: ShortDecoder
+</span><a href="#local-6989586621679070354"><span class="hs-identifier hs-var hs-var">next</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ShortDecoder
+</span><a href="#local-6989586621679070323"><span class="hs-identifier hs-var">decodeShort</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070353"><span class="hs-identifier hs-var">i'</span></a></span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span>                        </span><span id="local-6989586621679070357"><span class="annot"><span class="annottext">rest :: Maybe OsString
+</span><a href="#local-6989586621679070357"><span class="hs-identifier hs-var hs-var">rest</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070353"><span class="hs-identifier hs-var">i'</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070317"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe OsString
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-159"></span><span>                             </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">OsString -&gt; Maybe OsString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(OsString -&gt; Maybe OsString) -&gt; OsString -&gt; Maybe OsString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; OsString
+forall {b}. Coercible b ByteArray =&gt; Int -&gt; b
+</span><a href="#local-6989586621679070321"><span class="hs-identifier hs-var">cutArgument</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070353"><span class="hs-identifier hs-var">i'</span></a></span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span>                    </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Maybe OsString -&gt; ShortDecoder -&gt; ShortDecoder
+</span><a href="Codec.Console.Options.html#Short%27"><span class="hs-identifier hs-var">Short'</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070350"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe OsString
+</span><a href="#local-6989586621679070357"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="annot"><span class="annottext">ShortDecoder
+</span><a href="#local-6989586621679070354"><span class="hs-identifier hs-var">next</span></a></span><span>
+</span><span id="line-162"></span><span>
+</span><span id="line-163"></span><span>    </span><span class="hs-comment">-- See Note [Slicing raw command-line arguments]</span><span>
+</span><span id="line-164"></span><span>    </span><span id="local-6989586621679070321"><span class="annot"><span class="annottext">cutArgument :: Int -&gt; b
+</span><a href="#local-6989586621679070321"><span class="hs-identifier hs-var hs-var">cutArgument</span></a></span></span><span> </span><span id="local-6989586621679070361"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070361"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-165"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679070365"><span class="annot"><span class="annottext">offset :: Int
+</span><a href="#local-6989586621679070365"><span class="hs-identifier hs-var hs-var">offset</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679070313"><span class="hs-identifier hs-var">isWindows</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">unsafeShiftL</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070361"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-166"></span><span>                  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070361"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span>      </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; b
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">(ShortByteString -&gt; b) -&gt; ShortByteString -&gt; b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ShortByteString -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">SB.drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070365"><span class="hs-identifier hs-var">offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteArray -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">ShortByteString</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679070314"><span class="hs-identifier hs-var">raw</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span></pre></body></html>

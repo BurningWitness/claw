@@ -1,0 +1,1193 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns
+           , FlexibleInstances
+           , TemplateHaskellQuotes
+           , TypeApplications #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html"><span class="hs-identifier">Data.Console.Options.Internal</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#OptionsQ"><span class="hs-identifier">OptionsQ</span></a></span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier">Options</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#empty"><span class="hs-identifier">empty</span></a></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#sequenceCode"><span class="hs-identifier">sequenceCode</span></a></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#lookupShort"><span class="hs-identifier">lookupShort</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#lookupLong"><span class="hs-identifier">lookupLong</span></a></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#insert"><span class="hs-identifier">insert</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#insertQ"><span class="hs-identifier">insertQ</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#suggestions"><span class="hs-identifier">suggestions</span></a></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Console.Option.Internal.html"><span class="hs-identifier">Data.Console.Option.Internal</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Primitive.ByteArray.Levenshtein.html"><span class="hs-identifier">Data.Primitive.ByteArray.Levenshtein</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Levenshtein</span></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad.ST</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteString.Short</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ShortByteString</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Short</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">SB</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Coerce</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Functor.Identity</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">List</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Patricia.Word.Strict</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Patricia</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Patricia.Word.Strict</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Patricia</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Patricia.Word.Strict.TH</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Patricia</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Primitive.ByteArray</span></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Primitive.PrimArray</span></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Radix1Tree.Word8.Key</span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Radix1Tree.Word8.Key.Unsafe</span></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Radix1Tree.Word8.Strict</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Radix1Tree</span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Radix1Tree.Word8.Strict</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Radix</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Radix1Tree.Word8.Strict.TH</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Radix</span></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Radix1Tree.Word8.Strict.Unsafe</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Radix</span></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text.Short</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ShortText</span></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Short</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ST</span></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Short.Unsafe</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ST</span></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Base</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafeChr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Language.Haskell.TH.Syntax</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Name</span></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="annot"><span class="hs-comment">-- | Convenience synonym.</span></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">type</span><span> </span><span id="OptionsQ"><span class="annot"><a href="Data.Console.Options.Internal.html#OptionsQ"><span class="hs-identifier hs-var">OptionsQ</span></a></span></span><span> </span><span id="local-6989586621679070823"><span class="annot"><a href="#local-6989586621679070823"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Q</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Code</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Q</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679070823"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="annot"><span class="hs-comment">-- | Spine-strict option tree.</span></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">data</span><span> </span><span id="Options"><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-var">Options</span></a></span></span><span> </span><span id="local-6989586621679070669"><span class="annot"><a href="#local-6989586621679070669"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679070670"><span class="annot"><a href="#local-6989586621679070670"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-59"></span><span>       </span><span id="Options"><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-var">Options</span></a></span></span><span>
+</span><span id="line-60"></span><span>         </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Patricia</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679070669"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Option.Internal.html#Function"><span class="hs-identifier hs-type">Function</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070670"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>         </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Radix1Tree</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679070669"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Option.Internal.html#Function"><span class="hs-identifier hs-type">Function</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070670"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679070634"><span id="local-6989586621679070827"><span id="local-6989586621679070831"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679070634"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-64"></span><span>  </span><span id="local-6989586621679070840"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; Options Identity f -&gt; ShowS
+</span><a href="#local-6989586621679070840"><span class="hs-identifier hs-var hs-var hs-var">showsPrec</span></a></span></span><span> </span><span id="local-6989586621679070842"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070842"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span id="local-6989586621679070843"><span class="annot"><span class="annottext">Patricia (Identity (Function f))
+</span><a href="#local-6989586621679070843"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621679070844"><span class="annot"><span class="annottext">Radix1Tree (Identity (Function f))
+</span><a href="#local-6989586621679070844"><span class="hs-identifier hs-var">radix</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-65"></span><span>    </span><span class="annot"><span class="annottext">Bool -&gt; ShowS -&gt; ShowS
+</span><span class="hs-identifier hs-var">showParen</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679070842"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ShowS -&gt; ShowS) -&gt; ShowS -&gt; ShowS
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-66"></span><span>      </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Options &quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span>
+</span><span id="line-67"></span><span>        </span><span class="annot"><span class="annottext">[ShowS] -&gt; ShowS
+</span><a href="Data.Console.Options.Internal.html#showCurlyList"><span class="hs-identifier hs-var">showCurlyList</span></a></span><span>
+</span><span id="line-68"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Word -&gt; Identity (Function f) -&gt; [ShowS] -&gt; [ShowS])
+-&gt; [ShowS] -&gt; Patricia (Identity (Function f)) -&gt; [ShowS]
+forall a b. (Word -&gt; a -&gt; b -&gt; b) -&gt; b -&gt; Patricia a -&gt; b
+</span><span class="hs-identifier hs-var">Patricia.foldrWithKey</span></span><span> </span><span class="annot"><span class="annottext">Word -&gt; Identity (Function f) -&gt; [ShowS] -&gt; [ShowS]
+forall {a} {f}.
+Integral a =&gt;
+a -&gt; Identity (Function f) -&gt; [ShowS] -&gt; [ShowS]
+</span><a href="#local-6989586621679070851"><span class="hs-identifier hs-var">short</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Build1 -&gt; Identity (Function f) -&gt; [ShowS] -&gt; [ShowS])
+-&gt; [ShowS] -&gt; Radix1Tree (Identity (Function f)) -&gt; [ShowS]
+forall a b. (Build1 -&gt; a -&gt; b -&gt; b) -&gt; b -&gt; Radix1Tree a -&gt; b
+</span><span class="hs-identifier hs-var">Radix.foldrWithKey</span></span><span> </span><span class="annot"><span class="annottext">Build1 -&gt; Identity (Function f) -&gt; [ShowS] -&gt; [ShowS]
+forall {f}. Build1 -&gt; Identity (Function f) -&gt; [ShowS] -&gt; [ShowS]
+</span><a href="#local-6989586621679070853"><span class="hs-identifier hs-var">long</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Radix1Tree (Identity (Function f))
+</span><a href="#local-6989586621679070844"><span class="hs-identifier hs-var">radix</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Patricia (Identity (Function f))
+</span><a href="#local-6989586621679070843"><span class="hs-identifier hs-var">pat</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-70"></span><span>      </span><span id="local-6989586621679070854"><span class="annot"><span class="annottext">defun :: Function f -&gt; String
+</span><a href="#local-6989586621679070854"><span class="hs-identifier hs-var hs-var">defun</span></a></span></span><span> </span><span id="local-6989586621679070855"><span class="annot"><span class="annottext">Function f
+</span><a href="#local-6989586621679070855"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-71"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Function f
+</span><a href="#local-6989586621679070855"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-72"></span><span>          </span><span class="annot"><a href="Data.Console.Option.Internal.html#Zero"><span class="hs-identifier hs-type">Zero</span></a></span><span>  </span><span class="annot"><span class="annottext">f
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;plain&quot;</span></span><span>
+</span><span id="line-73"></span><span>          </span><span class="annot"><a href="Data.Console.Option.Internal.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe OsString -&gt; f
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;optional&quot;</span></span><span>
+</span><span id="line-74"></span><span>          </span><span class="annot"><a href="Data.Console.Option.Internal.html#One"><span class="hs-identifier hs-type">One</span></a></span><span>   </span><span class="annot"><span class="annottext">OsString -&gt; f
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;required&quot;</span></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span>      </span><span id="local-6989586621679070851"><span class="annot"><span class="annottext">short :: a -&gt; Identity (Function f) -&gt; [ShowS] -&gt; [ShowS]
+</span><a href="#local-6989586621679070851"><span class="hs-identifier hs-var hs-var">short</span></a></span></span><span> </span><span id="local-6989586621679070877"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679070877"><span class="hs-identifier hs-var">key</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span id="local-6989586621679070879"><span class="annot"><span class="annottext">Function f
+</span><a href="#local-6989586621679070879"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-77"></span><span>        </span><span class="hs-special">(</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ShowS -&gt; [ShowS] -&gt; [ShowS]) -&gt; ShowS -&gt; [ShowS] -&gt; [ShowS]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-78"></span><span>          </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;-&quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; ShowS
+</span><span class="hs-identifier hs-var">showChar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Char
+</span><span class="hs-identifier hs-var">unsafeChr</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Char) -&gt; Int -&gt; Char
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679070877"><span class="hs-identifier hs-var">key</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>                         </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; = &quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Function f -&gt; String
+forall {f}. Function f -&gt; String
+</span><a href="#local-6989586621679070854"><span class="hs-identifier hs-var">defun</span></a></span><span> </span><span class="annot"><span class="annottext">Function f
+</span><a href="#local-6989586621679070879"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span>      </span><span id="local-6989586621679070853"><span class="annot"><span class="annottext">long :: Build1 -&gt; Identity (Function f) -&gt; [ShowS] -&gt; [ShowS]
+</span><a href="#local-6989586621679070853"><span class="hs-identifier hs-var hs-var">long</span></a></span></span><span> </span><span id="local-6989586621679070881"><span class="annot"><span class="annottext">Build1
+</span><a href="#local-6989586621679070881"><span class="hs-identifier hs-var">key</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span id="local-6989586621679070882"><span class="annot"><span class="annottext">Function f
+</span><a href="#local-6989586621679070882"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-82"></span><span>        </span><span class="hs-special">(</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ShowS -&gt; [ShowS] -&gt; [ShowS]) -&gt; ShowS -&gt; [ShowS] -&gt; [ShowS]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-83"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679070883"><span class="annot"><span class="annottext">txt :: String
+</span><a href="#local-6989586621679070883"><span class="hs-identifier hs-var hs-var">txt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; String
+</span><span class="hs-identifier hs-var">ST.unpack</span></span><span> </span><span class="annot"><span class="annottext">(ShortText -&gt; String)
+-&gt; (ShortByteString -&gt; ShortText) -&gt; ShortByteString -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; ShortText
+</span><span class="hs-identifier hs-var">ST.fromShortByteStringUnsafe</span></span><span> </span><span class="annot"><span class="annottext">(ShortByteString -&gt; String) -&gt; ShortByteString -&gt; String
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Build1 -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">buildShortByteString</span></span><span> </span><span class="annot"><span class="annottext">Build1
+</span><a href="#local-6989586621679070881"><span class="hs-identifier hs-var">key</span></a></span><span>
+</span><span id="line-84"></span><span>          </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;--&quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679070883"><span class="hs-identifier hs-var">txt</span></a></span><span>
+</span><span id="line-85"></span><span>                             </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; = &quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Function f -&gt; String
+forall {f}. Function f -&gt; String
+</span><a href="#local-6989586621679070854"><span class="hs-identifier hs-var">defun</span></a></span><span> </span><span class="annot"><span class="annottext">Function f
+</span><a href="#local-6989586621679070882"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="annot"><a href="Data.Console.Options.Internal.html#showCurlyList"><span class="hs-identifier hs-type">showCurlyList</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">ShowS</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShowS</span></span><span>
+</span><span id="line-88"></span><span id="showCurlyList"><span class="annot"><span class="annottext">showCurlyList :: [ShowS] -&gt; ShowS
+</span><a href="Data.Console.Options.Internal.html#showCurlyList"><span class="hs-identifier hs-var hs-var">showCurlyList</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679070887"><span class="annot"><span class="annottext">[ShowS]
+</span><a href="#local-6989586621679070887"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[ShowS]
+</span><a href="#local-6989586621679070887"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-special">[</span><span class="hs-special">]</span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;{}&quot;</span></span><span>
+</span><span id="line-91"></span><span>    </span><span id="local-6989586621679070888"><span class="annot"><span class="annottext">ShowS
+</span><a href="#local-6989586621679070888"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679070889"><span class="annot"><span class="annottext">[ShowS]
+</span><a href="#local-6989586621679070889"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char -&gt; ShowS
+</span><span class="hs-identifier hs-var">showChar</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'{'</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; [ShowS] -&gt; ShowS
+</span><a href="#local-6989586621679070890"><span class="hs-identifier hs-var">go1</span></a></span><span> </span><span class="annot"><span class="annottext">ShowS
+</span><a href="#local-6989586621679070888"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">[ShowS]
+</span><a href="#local-6989586621679070889"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; ShowS
+</span><span class="hs-identifier hs-var">showChar</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'}'</span></span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-93"></span><span>  </span><span id="local-6989586621679070890"><span class="annot"><span class="annottext">go1 :: ShowS -&gt; [ShowS] -&gt; ShowS
+</span><a href="#local-6989586621679070890"><span class="hs-identifier hs-var hs-var">go1</span></a></span></span><span> </span><span id="local-6989586621679070891"><span class="annot"><span class="annottext">ShowS
+</span><a href="#local-6989586621679070891"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679070892"><span class="annot"><span class="annottext">[ShowS]
+</span><a href="#local-6989586621679070892"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-94"></span><span>    </span><span class="annot"><span class="annottext">ShowS
+</span><a href="#local-6989586621679070891"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[ShowS]
+</span><a href="#local-6989586621679070892"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-95"></span><span>          </span><span class="hs-special">[</span><span class="hs-special">]</span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ShowS
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-96"></span><span>          </span><span id="local-6989586621679070894"><span class="annot"><span class="annottext">ShowS
+</span><a href="#local-6989586621679070894"><span class="hs-identifier hs-var">y</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679070895"><span class="annot"><span class="annottext">[ShowS]
+</span><a href="#local-6989586621679070895"><span class="hs-identifier hs-var">zs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;, &quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; [ShowS] -&gt; ShowS
+</span><a href="#local-6989586621679070890"><span class="hs-identifier hs-var">go1</span></a></span><span> </span><span class="annot"><span class="annottext">ShowS
+</span><a href="#local-6989586621679070894"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">[ShowS]
+</span><a href="#local-6989586621679070895"><span class="hs-identifier hs-var">zs</span></a></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="annot"><span class="hs-comment">-- | Empty option tree.</span></span><span>
+</span><span id="line-102"></span><span id="local-6989586621679070665"><span id="local-6989586621679070666"><span class="annot"><a href="Data.Console.Options.Internal.html#empty"><span class="hs-identifier hs-type">empty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070665"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070666"><span class="hs-identifier hs-type">f</span></a></span></span></span><span>
+</span><span id="line-103"></span><span id="empty"><span class="annot"><span class="annottext">empty :: forall (m :: * -&gt; *) f. Options m f
+</span><a href="Data.Console.Options.Internal.html#empty"><span class="hs-identifier hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Patricia (m (Function f))
+-&gt; Radix1Tree (m (Function f)) -&gt; Options m f
+forall (m :: * -&gt; *) f.
+Patricia (m (Function f))
+-&gt; Radix1Tree (m (Function f)) -&gt; Options m f
+</span><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-var">Options</span></a></span><span> </span><span class="annot"><span class="annottext">Patricia (m (Function f))
+forall a. Patricia a
+</span><span class="hs-identifier hs-var">Patricia.empty</span></span><span> </span><span class="annot"><span class="annottext">Radix1Tree (m (Function f))
+forall a. Radix1Tree a
+</span><span class="hs-identifier hs-var">Radix.empty</span></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="annot"><span class="hs-comment">-- | Precompile the option tree.</span></span><span>
+</span><span id="line-108"></span><span id="local-6989586621679070673"><span class="annot"><a href="Data.Console.Options.Internal.html#sequenceCode"><span class="hs-identifier hs-type">sequenceCode</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#OptionsQ"><span class="hs-identifier hs-type">OptionsQ</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070673"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Code</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Q</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679070673"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-109"></span><span id="sequenceCode"><span class="annot"><span class="annottext">sequenceCode :: forall f. OptionsQ f -&gt; Code Q (Options Identity f)
+</span><a href="Data.Console.Options.Internal.html#sequenceCode"><span class="hs-identifier hs-var hs-var">sequenceCode</span></a></span></span><span> </span><span id="local-6989586621679070907"><span class="annot"><span class="annottext">OptionsQ f
+</span><a href="#local-6989586621679070907"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-110"></span><span>  </span><span class="annot"><span class="annottext">Q (Code Q (Options Identity f)) -&gt; Code Q (Options Identity f)
+forall (m :: * -&gt; *) a. Monad m =&gt; m (Code m a) -&gt; Code m a
+</span><span class="hs-identifier hs-var">joinCode</span></span><span> </span><span class="annot"><span class="annottext">(Q (Code Q (Options Identity f)) -&gt; Code Q (Options Identity f))
+-&gt; Q (Code Q (Options Identity f)) -&gt; Code Q (Options Identity f)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-111"></span><span>    </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span id="local-6989586621679070909"><span class="annot"><a href="#local-6989586621679070909"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621679070910"><span class="annot"><a href="#local-6989586621679070910"><span class="hs-identifier hs-var">radix</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">OptionsQ f
+</span><a href="#local-6989586621679070907"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><span id="line-112"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span>
+</span><span id="line-113"></span><span>      </span><span class="hs-special">[||</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span>
+</span><span id="line-114"></span><span>            </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679070911"><span class="annot"><span class="hs-identifier hs-type">coerce</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Patricia</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Option.Internal.html#Function"><span class="hs-identifier hs-type">Function</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070911"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Patricia</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Option.Internal.html#Function"><span class="hs-identifier hs-type">Function</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070911"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>               </span><span class="hs-special">$$</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Patricia.sequenceCode</span></span><span> </span><span class="annot"><a href="#local-6989586621679070909"><span class="hs-identifier hs-type">pat</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span>            </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679070914"><span class="annot"><span class="hs-identifier hs-type">coerce</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Radix1Tree</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Option.Internal.html#Function"><span class="hs-identifier hs-type">Function</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070914"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Radix1Tree</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Option.Internal.html#Function"><span class="hs-identifier hs-type">Function</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070914"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>               </span><span class="hs-special">$$</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Radix.sequenceCode</span></span><span> </span><span class="annot"><a href="#local-6989586621679070910"><span class="hs-identifier hs-type">radix</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>       </span><span class="hs-special">||]</span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span id="local-6989586621679070697"><span class="annot"><a href="Data.Console.Options.Internal.html#lookupShort"><span class="hs-identifier hs-type">lookupShort</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679070697"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Option.Internal.html#Function"><span class="hs-identifier hs-type">Function</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070697"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-124"></span><span id="lookupShort"><span class="annot"><span class="annottext">lookupShort :: forall f. Char -&gt; Options Identity f -&gt; Maybe (Function f)
+</span><a href="Data.Console.Options.Internal.html#lookupShort"><span class="hs-identifier hs-var hs-var">lookupShort</span></a></span></span><span> </span><span id="local-6989586621679070924"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070924"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span id="local-6989586621679070925"><span class="annot"><span class="annottext">Patricia (Identity (Function f))
+</span><a href="#local-6989586621679070925"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621679070926"><span class="annot"><span class="annottext">Radix1Tree (Identity (Function f))
+</span><a href="#local-6989586621679070926"><span class="hs-identifier hs-var">_radix</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-125"></span><span>  </span><span class="annot"><span class="annottext">Maybe (Identity (Function f)) -&gt; Maybe (Function f)
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">(Maybe (Identity (Function f)) -&gt; Maybe (Function f))
+-&gt; Maybe (Identity (Function f)) -&gt; Maybe (Function f)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-126"></span><span>    </span><span class="annot"><span class="annottext">Word
+-&gt; Patricia (Identity (Function f))
+-&gt; Maybe (Identity (Function f))
+forall a. Word -&gt; Patricia a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Patricia.lookup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Word) -&gt; Int -&gt; Word
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int
+forall a. Enum a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070924"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Patricia (Identity (Function f))
+</span><a href="#local-6989586621679070925"><span class="hs-identifier hs-var">pat</span></a></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span id="local-6989586621679070701"><span class="annot"><a href="Data.Console.Options.Internal.html#lookupLong"><span class="hs-identifier hs-type">lookupLong</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortText</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679070701"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Option.Internal.html#Function"><span class="hs-identifier hs-type">Function</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070701"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-129"></span><span id="lookupLong"><span class="annot"><span class="annottext">lookupLong :: forall f. ShortText -&gt; Options Identity f -&gt; Maybe (Function f)
+</span><a href="Data.Console.Options.Internal.html#lookupLong"><span class="hs-identifier hs-var hs-var">lookupLong</span></a></span></span><span> </span><span id="local-6989586621679070930"><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679070930"><span class="hs-identifier hs-var">ls</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span id="local-6989586621679070931"><span class="annot"><span class="annottext">Patricia (Identity (Function f))
+</span><a href="#local-6989586621679070931"><span class="hs-identifier hs-var">_pat</span></a></span></span><span> </span><span id="local-6989586621679070932"><span class="annot"><span class="annottext">Radix1Tree (Identity (Function f))
+</span><a href="#local-6989586621679070932"><span class="hs-identifier hs-var">radix</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-130"></span><span>  </span><span class="annot"><span class="annottext">Maybe (Identity (Function f)) -&gt; Maybe (Function f)
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="annot"><span class="annottext">(Maybe (Identity (Function f)) -&gt; Maybe (Function f))
+-&gt; Maybe (Identity (Function f)) -&gt; Maybe (Function f)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-131"></span><span>    </span><span class="annot"><span class="annottext">Feed1
+-&gt; Radix1Tree (Identity (Function f))
+-&gt; Maybe (Identity (Function f))
+forall a. Feed1 -&gt; Radix1Tree a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Radix.lookup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ShortByteString -&gt; Feed1
+</span><span class="hs-identifier hs-var">unsafeFeedShortByteString</span></span><span> </span><span class="annot"><span class="annottext">(ShortByteString -&gt; Feed1) -&gt; ShortByteString -&gt; Feed1
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">ST.toShortByteString</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679070930"><span class="hs-identifier hs-var">ls</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Radix1Tree (Identity (Function f))
+</span><a href="#local-6989586621679070932"><span class="hs-identifier hs-var">radix</span></a></span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- | Insert an option into the tree.</span><span>
+</span><span id="line-136"></span><span class="hs-comment">--</span><span>
+</span><span id="line-137"></span><span class="hs-comment">--   If the option has an empty list of names, nothing is added to the tree.</span><span>
+</span><span id="line-138"></span><span class="hs-comment">--   Empty long names are similarly treated as no-ops.</span><span>
+</span><span id="line-139"></span><span class="hs-comment">--   When inserting duplicate names new values take precedence.</span><span>
+</span><span id="line-140"></span><span id="local-6989586621679070705"><span id="local-6989586621679070706"><span id="local-6989586621679070707"><span class="annot"><a href="Data.Console.Options.Internal.html#insert"><span class="hs-identifier hs-type">insert</span></a></span><span>
+</span><span id="line-141"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Console.Option.Internal.html#Option"><span class="hs-identifier hs-type">Option</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070705"><span class="hs-identifier hs-type">help</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070706"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070707"><span class="hs-identifier hs-type">arg</span></a></span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679070707"><span class="hs-identifier hs-type">arg</span></a></span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679070706"><span class="hs-identifier hs-type">f</span></a></span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679070706"><span class="hs-identifier hs-type">f</span></a></span></span></span></span><span>
+</span><span id="line-145"></span><span id="insert"><span class="annot"><span class="annottext">insert :: forall help f arg.
+Option help f arg
+-&gt; arg -&gt; Options Identity f -&gt; Options Identity f
+</span><a href="Data.Console.Options.Internal.html#insert"><span class="hs-identifier hs-var hs-var">insert</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Option.Internal.html#Option"><span class="hs-identifier hs-type">Option</span></a></span><span> </span><span id="local-6989586621679070939"><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621679070939"><span class="hs-identifier hs-var">names</span></a></span></span><span> </span><span id="local-6989586621679070940"><span class="annot"><span class="annottext">Flavor help f arg
+</span><a href="#local-6989586621679070940"><span class="hs-identifier hs-var">flavor</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679070941"><span class="annot"><span class="annottext">arg
+</span><a href="#local-6989586621679070941"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679070942"><span class="annot"><span class="annottext">Options Identity f
+</span><a href="#local-6989586621679070942"><span class="hs-identifier hs-var">options</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Options Identity f -&gt; Name -&gt; Options Identity f)
+-&gt; Options Identity f -&gt; [Name] -&gt; Options Identity f
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="annot"><span class="annottext">Options Identity f -&gt; Name -&gt; Options Identity f
+</span><a href="#local-6989586621679070944"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Options Identity f
+</span><a href="#local-6989586621679070942"><span class="hs-identifier hs-var">options</span></a></span><span> </span><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621679070939"><span class="hs-identifier hs-var">names</span></a></span><span>
+</span><span id="line-146"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-147"></span><span>    </span><span class="hs-glyph">!</span><span id="local-6989586621679070945"><span class="annot"><span class="annottext">fun :: Function f
+</span><a href="#local-6989586621679070945"><span class="hs-identifier hs-var hs-var">fun</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Flavor help f arg -&gt; arg -&gt; Function f
+forall help f arg. Flavor help f arg -&gt; arg -&gt; Function f
+</span><a href="Data.Console.Option.Internal.html#demote"><span class="hs-identifier hs-var">demote</span></a></span><span> </span><span class="annot"><span class="annottext">Flavor help f arg
+</span><a href="#local-6989586621679070940"><span class="hs-identifier hs-var">flavor</span></a></span><span> </span><span class="annot"><span class="annottext">arg
+</span><a href="#local-6989586621679070941"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span>    </span><span id="local-6989586621679070944"><span class="annot"><span class="annottext">go :: Options Identity f -&gt; Name -&gt; Options Identity f
+</span><a href="#local-6989586621679070944"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679070947"><span class="annot"><span class="annottext">Options Identity f
+</span><a href="#local-6989586621679070947"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621679070948"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679070948"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-150"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679070948"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-151"></span><span>        </span><span class="annot"><a href="Data.Console.Option.Internal.html#Short"><span class="hs-identifier hs-type">Short</span></a></span><span> </span><span id="local-6989586621679070950"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070950"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Function f -&gt; Options Identity f -&gt; Options Identity f
+forall f.
+Char -&gt; Function f -&gt; Options Identity f -&gt; Options Identity f
+</span><a href="Data.Console.Options.Internal.html#insertShort"><span class="hs-identifier hs-var">insertShort</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070950"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Function f
+</span><a href="#local-6989586621679070945"><span class="hs-identifier hs-var">fun</span></a></span><span> </span><span class="annot"><span class="annottext">Options Identity f
+</span><a href="#local-6989586621679070947"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-152"></span><span>        </span><span class="annot"><a href="Data.Console.Option.Internal.html#Long"><span class="hs-identifier hs-type">Long</span></a></span><span> </span><span id="local-6989586621679070953"><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679070953"><span class="hs-identifier hs-var">ls</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; Function f -&gt; Options Identity f -&gt; Options Identity f
+forall f.
+ShortText -&gt; Function f -&gt; Options Identity f -&gt; Options Identity f
+</span><a href="Data.Console.Options.Internal.html#insertLong"><span class="hs-identifier hs-var">insertLong</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679070953"><span class="hs-identifier hs-var">ls</span></a></span><span> </span><span class="annot"><span class="annottext">Function f
+</span><a href="#local-6989586621679070945"><span class="hs-identifier hs-var">fun</span></a></span><span> </span><span class="annot"><span class="annottext">Options Identity f
+</span><a href="#local-6989586621679070947"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- | Insert an option into the tree at compilation time.</span><span>
+</span><span id="line-155"></span><span class="hs-comment">--</span><span>
+</span><span id="line-156"></span><span class="hs-comment">--   Emits warnings if any of the provided option names are inaccessible, overwrite</span><span>
+</span><span id="line-157"></span><span class="hs-comment">--   previously added names, or contain non-portable characters.</span><span>
+</span><span id="line-158"></span><span class="hs-comment">--   Operates identically to 'insert' otherwise.</span><span>
+</span><span id="line-159"></span><span id="local-6989586621679070722"><span id="local-6989586621679070723"><span id="local-6989586621679070724"><span class="annot"><a href="Data.Console.Options.Internal.html#insertQ"><span class="hs-identifier hs-type">insertQ</span></a></span><span>
+</span><span id="line-160"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Console.Option.Internal.html#Option"><span class="hs-identifier hs-type">Option</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070722"><span class="hs-identifier hs-type">help</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070723"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070724"><span class="hs-identifier hs-type">arg</span></a></span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Code</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Q</span></span><span> </span><span class="annot"><a href="#local-6989586621679070724"><span class="hs-identifier hs-type">arg</span></a></span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#OptionsQ"><span class="hs-identifier hs-type">OptionsQ</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070723"><span class="hs-identifier hs-type">f</span></a></span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#OptionsQ"><span class="hs-identifier hs-type">OptionsQ</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070723"><span class="hs-identifier hs-type">f</span></a></span></span></span></span><span>
+</span><span id="line-164"></span><span id="insertQ"><span class="annot"><span class="annottext">insertQ :: forall help f arg.
+Option help f arg -&gt; Code Q arg -&gt; OptionsQ f -&gt; OptionsQ f
+</span><a href="Data.Console.Options.Internal.html#insertQ"><span class="hs-identifier hs-var hs-var">insertQ</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Option.Internal.html#Option"><span class="hs-identifier hs-type">Option</span></a></span><span> </span><span id="local-6989586621679070958"><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621679070958"><span class="hs-identifier hs-var">names</span></a></span></span><span> </span><span id="local-6989586621679070959"><span class="annot"><span class="annottext">Flavor help f arg
+</span><a href="#local-6989586621679070959"><span class="hs-identifier hs-var">flavor</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679070960"><span class="annot"><span class="annottext">Code Q arg
+</span><a href="#local-6989586621679070960"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679070961"><span class="annot"><span class="annottext">OptionsQ f
+</span><a href="#local-6989586621679070961"><span class="hs-identifier hs-var">optionsQ</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-165"></span><span>  </span><span id="local-6989586621679070962"><span class="annot"><a href="#local-6989586621679070962"><span class="hs-identifier hs-var">options</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">OptionsQ f
+</span><a href="#local-6989586621679070961"><span class="hs-identifier hs-var">optionsQ</span></a></span><span>
+</span><span id="line-166"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">foldlM</span></span><span> </span><span class="annot"><a href="#local-6989586621679070964"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070962"><span class="hs-identifier hs-type">options</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070958"><span class="hs-identifier hs-type">names</span></a></span><span>
+</span><span id="line-167"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-168"></span><span>    </span><span class="hs-glyph">!</span><span id="local-6989586621679070965"><span class="annot"><span class="annottext">fun :: Code Q (Function f)
+</span><a href="#local-6989586621679070965"><span class="hs-identifier hs-var hs-var">fun</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Flavor help f arg -&gt; Code Q arg -&gt; Code Q (Function f)
+forall help f arg.
+Flavor help f arg -&gt; Code Q arg -&gt; Code Q (Function f)
+</span><a href="Data.Console.Option.Internal.html#demoteQ"><span class="hs-identifier hs-var">demoteQ</span></a></span><span> </span><span class="annot"><span class="annottext">Flavor help f arg
+</span><a href="#local-6989586621679070959"><span class="hs-identifier hs-var">flavor</span></a></span><span> </span><span class="annot"><span class="annottext">Code Q arg
+</span><a href="#local-6989586621679070960"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span>    </span><span id="local-6989586621679070964"><span class="annot"><span class="annottext">go :: Options (Code Q) f -&gt; Name -&gt; OptionsQ f
+</span><a href="#local-6989586621679070964"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679070967"><span class="annot"><span class="annottext">Options (Code Q) f
+</span><a href="#local-6989586621679070967"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621679070968"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679070968"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-171"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679070968"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-172"></span><span>        </span><span class="annot"><a href="Data.Console.Option.Internal.html#Short"><span class="hs-identifier hs-type">Short</span></a></span><span> </span><span id="local-6989586621679070969"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070969"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Code Q (Function f) -&gt; Options (Code Q) f -&gt; OptionsQ f
+forall f.
+Char
+-&gt; Code Q (Function f)
+-&gt; Options (Code Q) f
+-&gt; Q (Options (Code Q) f)
+</span><a href="Data.Console.Options.Internal.html#insertShortQ"><span class="hs-identifier hs-var">insertShortQ</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070969"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Code Q (Function f)
+</span><a href="#local-6989586621679070965"><span class="hs-identifier hs-var">fun</span></a></span><span> </span><span class="annot"><span class="annottext">Options (Code Q) f
+</span><a href="#local-6989586621679070967"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-173"></span><span>        </span><span class="annot"><a href="Data.Console.Option.Internal.html#Long"><span class="hs-identifier hs-type">Long</span></a></span><span> </span><span id="local-6989586621679070971"><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679070971"><span class="hs-identifier hs-var">ls</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ShortText
+-&gt; Code Q (Function f) -&gt; Options (Code Q) f -&gt; OptionsQ f
+forall f.
+ShortText
+-&gt; Code Q (Function f)
+-&gt; Options (Code Q) f
+-&gt; Q (Options (Code Q) f)
+</span><a href="Data.Console.Options.Internal.html#insertLongQ"><span class="hs-identifier hs-var">insertLongQ</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679070971"><span class="hs-identifier hs-var">ls</span></a></span><span> </span><span class="annot"><span class="annottext">Code Q (Function f)
+</span><a href="#local-6989586621679070965"><span class="hs-identifier hs-var">fun</span></a></span><span> </span><span class="annot"><span class="annottext">Options (Code Q) f
+</span><a href="#local-6989586621679070967"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-174"></span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- | Check that the character is in POSIX Portable Character Set,</span><span>
+</span><span id="line-178"></span><span class="hs-comment">--   and is not a hyphen.</span><span>
+</span><span id="line-179"></span><span class="annot"><a href="Data.Console.Options.Internal.html#isValidShort"><span class="hs-identifier hs-type">isValidShort</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-180"></span><span id="isValidShort"><span class="annot"><span class="annottext">isValidShort :: Char -&gt; Bool
+</span><a href="Data.Console.Options.Internal.html#isValidShort"><span class="hs-identifier hs-var hs-var">isValidShort</span></a></span></span><span> </span><span id="local-6989586621679070974"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070974"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-181"></span><span>      </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070974"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\0'</span></span><span>
+</span><span id="line-182"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070974"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\x07'</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070974"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\x0D'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070974"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\x20'</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070974"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\x2C'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070974"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\x2E'</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070974"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\x7E'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- | Check that the character is in POSIX Portable Character Set,</span><span>
+</span><span id="line-187"></span><span class="hs-comment">--   and is not equals.</span><span>
+</span><span id="line-188"></span><span class="annot"><a href="Data.Console.Options.Internal.html#isValidLong"><span class="hs-identifier hs-type">isValidLong</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-189"></span><span id="isValidLong"><span class="annot"><span class="annottext">isValidLong :: Char -&gt; Bool
+</span><a href="Data.Console.Options.Internal.html#isValidLong"><span class="hs-identifier hs-var hs-var">isValidLong</span></a></span></span><span> </span><span id="local-6989586621679070979"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070979"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-190"></span><span>      </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070979"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\0'</span></span><span>
+</span><span id="line-191"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070979"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\x07'</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070979"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\x0D'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-192"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070979"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\x21'</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070979"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\x3C'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-193"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070979"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\x3E'</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070979"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\x7E'</span></span><span class="hs-special">)</span><span>
+</span><span id="line-194"></span><span>
+</span><span id="line-195"></span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span id="local-6989586621679070720"><span class="annot"><a href="Data.Console.Options.Internal.html#insertShort"><span class="hs-identifier hs-type">insertShort</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Option.Internal.html#Function"><span class="hs-identifier hs-type">Function</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070720"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679070720"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679070720"><span class="hs-identifier hs-type">f</span></a></span></span><span>
+</span><span id="line-198"></span><span id="insertShort"><span class="annot"><span class="annottext">insertShort :: forall f.
+Char -&gt; Function f -&gt; Options Identity f -&gt; Options Identity f
+</span><a href="Data.Console.Options.Internal.html#insertShort"><span class="hs-identifier hs-var hs-var">insertShort</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char
+ -&gt; Identity (Function f)
+ -&gt; Options Identity f
+ -&gt; Options Identity f)
+-&gt; Char -&gt; Function f -&gt; Options Identity f -&gt; Options Identity f
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) f.
+Char -&gt; m (Function f) -&gt; Options m f -&gt; Options m f
+</span><a href="Data.Console.Options.Internal.html#insertShort_"><span class="hs-identifier hs-var">insertShort_</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span class="hs-special">)</span><span>
+</span><span id="line-199"></span><span>
+</span><span id="line-200"></span><span id="local-6989586621679070735"><span class="annot"><a href="Data.Console.Options.Internal.html#insertShortQ"><span class="hs-identifier hs-type">insertShortQ</span></a></span><span>
+</span><span id="line-201"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span>
+</span><span id="line-202"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Code</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Q</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Option.Internal.html#Function"><span class="hs-identifier hs-type">Function</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070735"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-203"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Code</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Q</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679070735"><span class="hs-identifier hs-type">f</span></a></span><span>
+</span><span id="line-204"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Q</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Code</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Q</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679070735"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-205"></span><span id="insertShortQ"><span class="annot"><span class="annottext">insertShortQ :: forall f.
+Char
+-&gt; Code Q (Function f)
+-&gt; Options (Code Q) f
+-&gt; Q (Options (Code Q) f)
+</span><a href="Data.Console.Options.Internal.html#insertShortQ"><span class="hs-identifier hs-var hs-var">insertShortQ</span></a></span></span><span> </span><span id="local-6989586621679070987"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070987"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679070988"><span class="annot"><span class="annottext">Code Q (Function f)
+</span><a href="#local-6989586621679070988"><span class="hs-identifier hs-var">pair</span></a></span></span><span> </span><span id="local-6989586621679070989"><span class="annot"><span class="annottext">options :: Options (Code Q) f
+</span><a href="#local-6989586621679070989"><span class="hs-identifier hs-var">options</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span id="local-6989586621679070990"><span class="annot"><span class="annottext">Patricia (Code Q (Function f))
+</span><a href="#local-6989586621679070990"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621679070991"><span class="annot"><span class="annottext">Radix1Tree (Code Q (Function f))
+</span><a href="#local-6989586621679070991"><span class="hs-identifier hs-var">_radix</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-206"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679070995"><span class="annot"><span class="annottext">w :: Word
+</span><a href="#local-6989586621679070995"><span class="hs-identifier hs-var hs-var hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Word) -&gt; Int -&gt; Word
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int
+forall a. Enum a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070987"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-207"></span><span>
+</span><span id="line-208"></span><span>      </span><span id="local-6989586621679070996"><span class="annot"><span class="annottext">optionNameS :: ShowS
+</span><a href="#local-6989586621679070996"><span class="hs-identifier hs-var hs-var hs-var">optionNameS</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Option \&quot;-&quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; ShowS
+</span><span class="hs-identifier hs-var">showChar</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070987"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; ShowS
+</span><span class="hs-identifier hs-var">showChar</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'&quot;'</span></span><span>
+</span><span id="line-209"></span><span>
+</span><span id="line-210"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; Q () -&gt; Q ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word -&gt; Patricia (Code Q (Function f)) -&gt; Bool
+forall a. Word -&gt; Patricia a -&gt; Bool
+</span><span class="hs-identifier hs-var">Patricia.member</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621679070995"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Patricia (Code Q (Function f))
+</span><a href="#local-6989586621679070990"><span class="hs-identifier hs-var">pat</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Q () -&gt; Q ()) -&gt; Q () -&gt; Q ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-211"></span><span>    </span><span class="annot"><span class="annottext">String -&gt; Q ()
+</span><span class="hs-identifier hs-var">reportWarning</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Q ()) -&gt; String -&gt; Q ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-212"></span><span>      </span><span class="annot"><span class="annottext">ShowS
+</span><a href="#local-6989586621679070996"><span class="hs-identifier hs-var">optionNameS</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; is mentioned multiple times&quot;</span></span><span>
+</span><span id="line-213"></span><span>
+</span><span id="line-214"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; Q () -&gt; Q ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">unless</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="Data.Console.Options.Internal.html#isValidShort"><span class="hs-identifier hs-var">isValidShort</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070987"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Q () -&gt; Q ()) -&gt; Q () -&gt; Q ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-215"></span><span>    </span><span class="annot"><span class="annottext">String -&gt; Q ()
+</span><span class="hs-identifier hs-var">reportWarning</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Q ()) -&gt; String -&gt; Q ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-216"></span><span>      </span><span class="annot"><span class="annottext">ShowS
+</span><a href="#local-6989586621679070996"><span class="hs-identifier hs-var">optionNameS</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; uses a non-portable character or '-'&quot;</span></span><span>
+</span><span id="line-217"></span><span>
+</span><span id="line-218"></span><span>  </span><span class="annot"><span class="annottext">Options (Code Q) f -&gt; Q (Options (Code Q) f)
+forall a. a -&gt; Q a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Options (Code Q) f -&gt; Q (Options (Code Q) f))
+-&gt; Options (Code Q) f -&gt; Q (Options (Code Q) f)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Char
+-&gt; Code Q (Function f) -&gt; Options (Code Q) f -&gt; Options (Code Q) f
+forall (m :: * -&gt; *) f.
+Char -&gt; m (Function f) -&gt; Options m f -&gt; Options m f
+</span><a href="Data.Console.Options.Internal.html#insertShort_"><span class="hs-identifier hs-var">insertShort_</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679070987"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Code Q (Function f)
+</span><a href="#local-6989586621679070988"><span class="hs-identifier hs-var">pair</span></a></span><span> </span><span class="annot"><span class="annottext">Options (Code Q) f
+</span><a href="#local-6989586621679070989"><span class="hs-identifier hs-var">options</span></a></span><span>
+</span><span id="line-219"></span><span>
+</span><span id="line-220"></span><span id="local-6989586621679070739"><span id="local-6989586621679070740"><span class="annot"><a href="Data.Console.Options.Internal.html#insertShort_"><span class="hs-identifier hs-type">insertShort_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679070739"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Option.Internal.html#Function"><span class="hs-identifier hs-type">Function</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070740"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070739"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070740"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070739"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070740"><span class="hs-identifier hs-type">f</span></a></span></span></span><span>
+</span><span id="line-221"></span><span id="insertShort_"><span class="annot"><span class="annottext">insertShort_ :: forall (m :: * -&gt; *) f.
+Char -&gt; m (Function f) -&gt; Options m f -&gt; Options m f
+</span><a href="Data.Console.Options.Internal.html#insertShort_"><span class="hs-identifier hs-var hs-var">insertShort_</span></a></span></span><span> </span><span id="local-6989586621679071002"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071002"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679071003"><span class="annot"><span class="annottext">m (Function f)
+</span><a href="#local-6989586621679071003"><span class="hs-identifier hs-var">pair</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span id="local-6989586621679071004"><span class="annot"><span class="annottext">Patricia (m (Function f))
+</span><a href="#local-6989586621679071004"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621679071005"><span class="annot"><span class="annottext">Radix1Tree (m (Function f))
+</span><a href="#local-6989586621679071005"><span class="hs-identifier hs-var">radix</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-222"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679071008"><span class="annot"><span class="annottext">pat' :: Patricia (m (Function f))
+</span><a href="#local-6989586621679071008"><span class="hs-identifier hs-var hs-var">pat'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word
+-&gt; m (Function f)
+-&gt; Patricia (m (Function f))
+-&gt; Patricia (m (Function f))
+forall a. Word -&gt; a -&gt; Patricia a -&gt; Patricia a
+</span><span class="hs-identifier hs-var">Patricia.insert</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Word) -&gt; Int -&gt; Word
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><span class="hs-identifier hs-var">ord</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071002"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">m (Function f)
+</span><a href="#local-6989586621679071003"><span class="hs-identifier hs-var">pair</span></a></span><span> </span><span class="annot"><span class="annottext">Patricia (m (Function f))
+</span><a href="#local-6989586621679071004"><span class="hs-identifier hs-var">pat</span></a></span><span>
+</span><span id="line-223"></span><span>  </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Patricia (m (Function f))
+-&gt; Radix1Tree (m (Function f)) -&gt; Options m f
+forall (m :: * -&gt; *) f.
+Patricia (m (Function f))
+-&gt; Radix1Tree (m (Function f)) -&gt; Options m f
+</span><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-var">Options</span></a></span><span> </span><span class="annot"><span class="annottext">Patricia (m (Function f))
+</span><a href="#local-6989586621679071008"><span class="hs-identifier hs-var">pat'</span></a></span><span> </span><span class="annot"><span class="annottext">Radix1Tree (m (Function f))
+</span><a href="#local-6989586621679071005"><span class="hs-identifier hs-var">radix</span></a></span><span>
+</span><span id="line-224"></span><span>
+</span><span id="line-225"></span><span>
+</span><span id="line-226"></span><span>
+</span><span id="line-227"></span><span id="local-6989586621679070721"><span class="annot"><a href="Data.Console.Options.Internal.html#insertLong"><span class="hs-identifier hs-type">insertLong</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortText</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Option.Internal.html#Function"><span class="hs-identifier hs-type">Function</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070721"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679070721"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679070721"><span class="hs-identifier hs-type">f</span></a></span></span><span>
+</span><span id="line-228"></span><span id="insertLong"><span class="annot"><span class="annottext">insertLong :: forall f.
+ShortText -&gt; Function f -&gt; Options Identity f -&gt; Options Identity f
+</span><a href="Data.Console.Options.Internal.html#insertLong"><span class="hs-identifier hs-var hs-var">insertLong</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(ShortText
+ -&gt; Identity (Function f)
+ -&gt; Options Identity f
+ -&gt; Options Identity f)
+-&gt; ShortText
+-&gt; Function f
+-&gt; Options Identity f
+-&gt; Options Identity f
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (m :: * -&gt; *) f.
+ShortText -&gt; m (Function f) -&gt; Options m f -&gt; Options m f
+</span><a href="Data.Console.Options.Internal.html#insertLong_"><span class="hs-identifier hs-var">insertLong_</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span class="hs-special">)</span><span>
+</span><span id="line-229"></span><span>
+</span><span id="line-230"></span><span id="local-6989586621679070736"><span class="annot"><a href="Data.Console.Options.Internal.html#insertLongQ"><span class="hs-identifier hs-type">insertLongQ</span></a></span><span>
+</span><span id="line-231"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortText</span></span><span>
+</span><span id="line-232"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Code</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Q</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Option.Internal.html#Function"><span class="hs-identifier hs-type">Function</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070736"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-233"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Code</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Q</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679070736"><span class="hs-identifier hs-type">f</span></a></span><span>
+</span><span id="line-234"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Q</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Code</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Q</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679070736"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-235"></span><span id="insertLongQ"><span class="annot"><span class="annottext">insertLongQ :: forall f.
+ShortText
+-&gt; Code Q (Function f)
+-&gt; Options (Code Q) f
+-&gt; Q (Options (Code Q) f)
+</span><a href="Data.Console.Options.Internal.html#insertLongQ"><span class="hs-identifier hs-var hs-var">insertLongQ</span></a></span></span><span> </span><span id="local-6989586621679071018"><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071018"><span class="hs-identifier hs-var">txt</span></a></span></span><span> </span><span id="local-6989586621679071019"><span class="annot"><span class="annottext">Code Q (Function f)
+</span><a href="#local-6989586621679071019"><span class="hs-identifier hs-var">pair</span></a></span></span><span> </span><span id="local-6989586621679071020"><span class="annot"><span class="annottext">options :: Options (Code Q) f
+</span><a href="#local-6989586621679071020"><span class="hs-identifier hs-var">options</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span id="local-6989586621679071021"><span class="annot"><span class="annottext">Patricia (Code Q (Function f))
+</span><a href="#local-6989586621679071021"><span class="hs-identifier hs-var">_pat</span></a></span></span><span> </span><span id="local-6989586621679071022"><span class="annot"><span class="annottext">Radix1Tree (Code Q (Function f))
+</span><a href="#local-6989586621679071022"><span class="hs-identifier hs-var">radix</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-236"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679071023"><span class="annot"><span class="annottext">optionNameS :: ShowS
+</span><a href="#local-6989586621679071023"><span class="hs-identifier hs-var hs-var hs-var">optionNameS</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-237"></span><span>        </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Option \&quot;--&quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ShortText -&gt; String
+</span><span class="hs-identifier hs-var">ST.unpack</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071018"><span class="hs-identifier hs-var">txt</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; ShowS
+</span><span class="hs-identifier hs-var">showChar</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'&quot;'</span></span><span>
+</span><span id="line-238"></span><span>
+</span><span id="line-239"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; Bool
+</span><span class="hs-identifier hs-var">ST.null</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071018"><span class="hs-identifier hs-var">txt</span></a></span><span>
+</span><span id="line-240"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">String -&gt; Q ()
+</span><span class="hs-identifier hs-var">reportWarning</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Q ()) -&gt; String -&gt; Q ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-241"></span><span>           </span><span class="annot"><span class="annottext">ShowS
+</span><a href="#local-6989586621679071023"><span class="hs-identifier hs-var">optionNameS</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; is inaccessible&quot;</span></span><span>
+</span><span id="line-242"></span><span>
+</span><span id="line-243"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-244"></span><span>      </span><span class="annot"><span class="annottext">Bool -&gt; Q () -&gt; Q ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Feed1 -&gt; Radix1Tree (Code Q (Function f)) -&gt; Bool
+forall a. Feed1 -&gt; Radix1Tree a -&gt; Bool
+</span><span class="hs-identifier hs-var">Radix.member</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ShortByteString -&gt; Feed1
+</span><span class="hs-identifier hs-var">unsafeFeedShortByteString</span></span><span> </span><span class="annot"><span class="annottext">(ShortByteString -&gt; Feed1) -&gt; ShortByteString -&gt; Feed1
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">ST.toShortByteString</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071018"><span class="hs-identifier hs-var">txt</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-245"></span><span>                                                                           </span><span class="annot"><span class="annottext">Radix1Tree (Code Q (Function f))
+</span><a href="#local-6989586621679071022"><span class="hs-identifier hs-var">radix</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Q () -&gt; Q ()) -&gt; Q () -&gt; Q ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-246"></span><span>        </span><span class="annot"><span class="annottext">String -&gt; Q ()
+</span><span class="hs-identifier hs-var">reportWarning</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Q ()) -&gt; String -&gt; Q ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-247"></span><span>          </span><span class="annot"><span class="annottext">ShowS
+</span><a href="#local-6989586621679071023"><span class="hs-identifier hs-var">optionNameS</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; is mentioned multiple times&quot;</span></span><span>
+</span><span id="line-248"></span><span>
+</span><span id="line-249"></span><span>      </span><span class="annot"><span class="annottext">Bool -&gt; Q () -&gt; Q ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">unless</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; ShortText -&gt; Bool
+</span><span class="hs-identifier hs-var">ST.all</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="Data.Console.Options.Internal.html#isValidLong"><span class="hs-identifier hs-var">isValidLong</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071018"><span class="hs-identifier hs-var">txt</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Q () -&gt; Q ()) -&gt; Q () -&gt; Q ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-250"></span><span>        </span><span class="annot"><span class="annottext">String -&gt; Q ()
+</span><span class="hs-identifier hs-var">reportWarning</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Q ()) -&gt; String -&gt; Q ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-251"></span><span>          </span><span class="annot"><span class="annottext">ShowS
+</span><a href="#local-6989586621679071023"><span class="hs-identifier hs-var">optionNameS</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; uses non-portable characters or '='&quot;</span></span><span>
+</span><span id="line-252"></span><span>
+</span><span id="line-253"></span><span>  </span><span class="annot"><span class="annottext">Options (Code Q) f -&gt; Q (Options (Code Q) f)
+forall a. a -&gt; Q a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Options (Code Q) f -&gt; Q (Options (Code Q) f))
+-&gt; Options (Code Q) f -&gt; Q (Options (Code Q) f)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+-&gt; Code Q (Function f) -&gt; Options (Code Q) f -&gt; Options (Code Q) f
+forall (m :: * -&gt; *) f.
+ShortText -&gt; m (Function f) -&gt; Options m f -&gt; Options m f
+</span><a href="Data.Console.Options.Internal.html#insertLong_"><span class="hs-identifier hs-var">insertLong_</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071018"><span class="hs-identifier hs-var">txt</span></a></span><span> </span><span class="annot"><span class="annottext">Code Q (Function f)
+</span><a href="#local-6989586621679071019"><span class="hs-identifier hs-var">pair</span></a></span><span> </span><span class="annot"><span class="annottext">Options (Code Q) f
+</span><a href="#local-6989586621679071020"><span class="hs-identifier hs-var">options</span></a></span><span>
+</span><span id="line-254"></span><span>
+</span><span id="line-255"></span><span id="local-6989586621679070751"><span id="local-6989586621679070752"><span class="annot"><a href="Data.Console.Options.Internal.html#insertLong_"><span class="hs-identifier hs-type">insertLong_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortText</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679070751"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Option.Internal.html#Function"><span class="hs-identifier hs-type">Function</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070752"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070751"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070752"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070751"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679070752"><span class="hs-identifier hs-type">f</span></a></span></span></span><span>
+</span><span id="line-256"></span><span id="insertLong_"><span class="annot"><span class="annottext">insertLong_ :: forall (m :: * -&gt; *) f.
+ShortText -&gt; m (Function f) -&gt; Options m f -&gt; Options m f
+</span><a href="Data.Console.Options.Internal.html#insertLong_"><span class="hs-identifier hs-var hs-var">insertLong_</span></a></span></span><span> </span><span id="local-6989586621679071027"><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071027"><span class="hs-identifier hs-var">txt</span></a></span></span><span> </span><span id="local-6989586621679071028"><span class="annot"><span class="annottext">m (Function f)
+</span><a href="#local-6989586621679071028"><span class="hs-identifier hs-var">pair</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span id="local-6989586621679071029"><span class="annot"><span class="annottext">Patricia (m (Function f))
+</span><a href="#local-6989586621679071029"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621679071030"><span class="annot"><span class="annottext">Radix1Tree (m (Function f))
+</span><a href="#local-6989586621679071030"><span class="hs-identifier hs-var">radix</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-257"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679071031"><span class="annot"><span class="annottext">radix' :: Radix1Tree (m (Function f))
+</span><a href="#local-6989586621679071031"><span class="hs-identifier hs-var hs-var">radix'</span></a></span></span><span>
+</span><span id="line-258"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; Bool
+</span><span class="hs-identifier hs-var">ST.null</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071027"><span class="hs-identifier hs-var">txt</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Radix1Tree (m (Function f))
+</span><a href="#local-6989586621679071030"><span class="hs-identifier hs-var">radix</span></a></span><span>
+</span><span id="line-259"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Feed1
+-&gt; m (Function f)
+-&gt; Radix1Tree (m (Function f))
+-&gt; Radix1Tree (m (Function f))
+forall a. Feed1 -&gt; a -&gt; Radix1Tree a -&gt; Radix1Tree a
+</span><span class="hs-identifier hs-var">Radix.insert</span></span><span>
+</span><span id="line-260"></span><span>                          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ShortByteString -&gt; Feed1
+</span><span class="hs-identifier hs-var">unsafeFeedShortByteString</span></span><span> </span><span class="annot"><span class="annottext">(ShortByteString -&gt; Feed1) -&gt; ShortByteString -&gt; Feed1
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">ST.toShortByteString</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071027"><span class="hs-identifier hs-var">txt</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-261"></span><span>                          </span><span class="annot"><span class="annottext">m (Function f)
+</span><a href="#local-6989586621679071028"><span class="hs-identifier hs-var">pair</span></a></span><span> </span><span class="annot"><span class="annottext">Radix1Tree (m (Function f))
+</span><a href="#local-6989586621679071030"><span class="hs-identifier hs-var">radix</span></a></span><span>
+</span><span id="line-262"></span><span>  </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Patricia (m (Function f))
+-&gt; Radix1Tree (m (Function f)) -&gt; Options m f
+forall (m :: * -&gt; *) f.
+Patricia (m (Function f))
+-&gt; Radix1Tree (m (Function f)) -&gt; Options m f
+</span><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-var">Options</span></a></span><span> </span><span class="annot"><span class="annottext">Patricia (m (Function f))
+</span><a href="#local-6989586621679071029"><span class="hs-identifier hs-var">pat</span></a></span><span> </span><span class="annot"><span class="annottext">Radix1Tree (m (Function f))
+</span><a href="#local-6989586621679071031"><span class="hs-identifier hs-var">radix'</span></a></span><span>
+</span><span id="line-263"></span><span>
+</span><span id="line-264"></span><span>
+</span><span id="line-265"></span><span>
+</span><span id="line-266"></span><span id="local-6989586621679070758"><span class="annot"><a href="Data.Console.Options.Internal.html#collectLevenshtein"><span class="hs-identifier hs-type">collectLevenshtein</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortText</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Radix1Tree</span></span><span> </span><span class="annot"><a href="#local-6989586621679070758"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">ShortText</span></span><span class="hs-special">]</span></span><span>
+</span><span id="line-267"></span><span id="collectLevenshtein"><span class="annot"><span class="annottext">collectLevenshtein :: forall a. Int -&gt; ShortText -&gt; Radix1Tree a -&gt; [ShortText]
+</span><a href="Data.Console.Options.Internal.html#collectLevenshtein"><span class="hs-identifier hs-var hs-var">collectLevenshtein</span></a></span></span><span> </span><span id="local-6989586621679071034"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071034"><span class="hs-identifier hs-var">cap</span></a></span></span><span> </span><span id="local-6989586621679071035"><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071035"><span class="hs-identifier hs-var">input</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-268"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679071036"><span class="annot"><span class="annottext">r :: PrimArray Int
+</span><a href="#local-6989586621679071036"><span class="hs-identifier hs-var hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall s. ST s (PrimArray Int)) -&gt; PrimArray Int
+forall a. (forall s. ST s a) -&gt; a
+</span><span class="hs-identifier hs-var">runST</span></span><span> </span><span class="annot"><span class="annottext">((forall s. ST s (PrimArray Int)) -&gt; PrimArray Int)
+-&gt; (forall s. ST s (PrimArray Int)) -&gt; PrimArray Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; ST s (PrimArray Int)
+forall x. ShortText -&gt; ST x (PrimArray Int)
+</span><a href="Data.Primitive.ByteArray.Levenshtein.html#initialize"><span class="hs-identifier hs-var">Levenshtein.initialize</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071035"><span class="hs-identifier hs-var">input</span></a></span><span>
+</span><span id="line-269"></span><span>
+</span><span id="line-270"></span><span>  </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; PrimArray Int -&gt; Tsil ByteArray -&gt; Radix1Tree a -&gt; [ShortText]
+forall {a}.
+Int
+-&gt; PrimArray Int -&gt; Tsil ByteArray -&gt; Radix1Tree a -&gt; [ShortText]
+</span><a href="#local-6989586621679071039"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">PrimArray Int
+</span><a href="#local-6989586621679071036"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Tsil ByteArray
+forall a. Tsil a
+</span><span class="hs-identifier hs-var">Lin</span></span><span>
+</span><span id="line-271"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-272"></span><span>    </span><span id="local-6989586621679071039"><span class="annot"><span class="annottext">go :: Int
+-&gt; PrimArray Int -&gt; Tsil ByteArray -&gt; Radix1Tree a -&gt; [ShortText]
+</span><a href="#local-6989586621679071039"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679071042"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071042"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679071043"><span class="annot"><span class="annottext">PrimArray Int
+</span><a href="#local-6989586621679071043"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679071044"><span class="annot"><span class="annottext">Tsil ByteArray
+</span><a href="#local-6989586621679071044"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679071045"><span class="annot"><span class="annottext">Radix1Tree a
+</span><a href="#local-6989586621679071045"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-273"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Radix1Tree a
+</span><a href="#local-6989586621679071045"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-274"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Radix.Bin</span></span><span> </span><span class="annot"><span class="annottext">Prefix
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679071047"><span class="annot"><span class="annottext">Radix1Tree a
+</span><a href="#local-6989586621679071047"><span class="hs-identifier hs-var">dl</span></a></span></span><span> </span><span id="local-6989586621679071048"><span class="annot"><span class="annottext">Radix1Tree a
+</span><a href="#local-6989586621679071048"><span class="hs-identifier hs-var">dr</span></a></span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; PrimArray Int -&gt; Tsil ByteArray -&gt; Radix1Tree a -&gt; [ShortText]
+</span><a href="#local-6989586621679071039"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071042"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">PrimArray Int
+</span><a href="#local-6989586621679071043"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Tsil ByteArray
+</span><a href="#local-6989586621679071044"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Radix1Tree a
+</span><a href="#local-6989586621679071047"><span class="hs-identifier hs-var">dl</span></a></span><span> </span><span class="annot"><span class="annottext">[ShortText] -&gt; [ShortText] -&gt; [ShortText]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; PrimArray Int -&gt; Tsil ByteArray -&gt; Radix1Tree a -&gt; [ShortText]
+</span><a href="#local-6989586621679071039"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071042"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">PrimArray Int
+</span><a href="#local-6989586621679071043"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Tsil ByteArray
+</span><a href="#local-6989586621679071044"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Radix1Tree a
+</span><a href="#local-6989586621679071048"><span class="hs-identifier hs-var">dr</span></a></span><span>
+</span><span id="line-275"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Radix.Tip</span></span><span> </span><span id="local-6989586621679071050"><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679071050"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span id="local-6989586621679071051"><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679071051"><span class="hs-identifier hs-var">mx</span></a></span></span><span> </span><span id="local-6989586621679071052"><span class="annot"><span class="annottext">Radix1Tree a
+</span><a href="#local-6989586621679071052"><span class="hs-identifier hs-var">dx</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-276"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679071053"><span class="annot"><span class="annottext">v :: PrimArray Int
+</span><a href="#local-6989586621679071053"><span class="hs-identifier hs-var hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall s. ST s (PrimArray Int)) -&gt; PrimArray Int
+forall a. (forall s. ST s a) -&gt; a
+</span><span class="hs-identifier hs-var">runST</span></span><span> </span><span class="annot"><span class="annottext">((forall s. ST s (PrimArray Int)) -&gt; PrimArray Int)
+-&gt; (forall s. ST s (PrimArray Int)) -&gt; PrimArray Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679071061"><span class="annot"><a href="#local-6989586621679071061"><span class="hs-identifier hs-var">_r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">PrimArray Int
+-&gt; Int -&gt; Int -&gt; ST s (MutablePrimArray (PrimState (ST s)) Int)
+forall (m :: * -&gt; *) a.
+(PrimMonad m, Prim a) =&gt;
+PrimArray a -&gt; Int -&gt; Int -&gt; m (MutablePrimArray (PrimState m) a)
+</span><span class="hs-identifier hs-var">thawPrimArray</span></span><span> </span><span class="annot"><span class="annottext">PrimArray Int
+</span><a href="#local-6989586621679071043"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PrimArray Int -&gt; Int
+forall a. Prim a =&gt; PrimArray a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeofPrimArray</span></span><span> </span><span class="annot"><span class="annottext">PrimArray Int
+</span><a href="#local-6989586621679071043"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-277"></span><span>                              </span><span class="annot"><a href="Data.Primitive.ByteArray.Levenshtein.html#iterate"><span class="hs-identifier hs-type">Levenshtein.iterate</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071042"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071050"><span class="hs-identifier hs-type">arr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071035"><span class="hs-identifier hs-type">input</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071061"><span class="hs-identifier hs-type">_r</span></a></span><span>
+</span><span id="line-278"></span><span>
+</span><span id="line-279"></span><span>              </span><span id="local-6989586621679071066"><span class="annot"><span class="annottext">more :: [ShortText]
+</span><a href="#local-6989586621679071066"><span class="hs-identifier hs-var hs-var">more</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; PrimArray Int -&gt; Tsil ByteArray -&gt; Radix1Tree a -&gt; [ShortText]
+</span><a href="#local-6989586621679071039"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071042"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">ByteArray -&gt; Int
+</span><span class="hs-identifier hs-var">sizeofByteArray</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679071050"><span class="hs-identifier hs-var">arr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">PrimArray Int
+</span><a href="#local-6989586621679071053"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tsil ByteArray -&gt; ByteArray -&gt; Tsil ByteArray
+forall a. Tsil a -&gt; a -&gt; Tsil a
+</span><span class="hs-identifier hs-var">Snoc</span></span><span> </span><span class="annot"><span class="annottext">Tsil ByteArray
+</span><a href="#local-6989586621679071044"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679071050"><span class="hs-identifier hs-var">arr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Radix1Tree a
+</span><a href="#local-6989586621679071052"><span class="hs-identifier hs-var">dx</span></a></span><span>
+</span><span id="line-280"></span><span>
+</span><span id="line-281"></span><span>          </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; PrimArray Int -&gt; Int
+</span><a href="Data.Primitive.ByteArray.Levenshtein.html#rate"><span class="hs-identifier hs-var">Levenshtein.rate</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071035"><span class="hs-identifier hs-var">input</span></a></span><span> </span><span class="annot"><span class="annottext">PrimArray Int
+</span><a href="#local-6989586621679071053"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071034"><span class="hs-identifier hs-var">cap</span></a></span><span>
+</span><span id="line-282"></span><span>               </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679071051"><span class="hs-identifier hs-var">mx</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-283"></span><span>                      </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[ShortText]
+</span><a href="#local-6989586621679071066"><span class="hs-identifier hs-var">more</span></a></span><span>
+</span><span id="line-284"></span><span>                      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-285"></span><span>                        </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679071071"><span class="annot"><span class="annottext">txt :: ShortText
+</span><a href="#local-6989586621679071071"><span class="hs-identifier hs-var hs-var">txt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; ShortText
+</span><span class="hs-identifier hs-var">ST.fromShortByteStringUnsafe</span></span><span> </span><span class="annot"><span class="annottext">(ShortByteString -&gt; ShortText) -&gt; ShortByteString -&gt; ShortText
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-286"></span><span>                                     </span><span class="annot"><span class="annottext">Build1 -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">Radix.buildShortByteString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">YtpmeNon ByteArray -&gt; Build1
+</span><span class="hs-identifier hs-var">Build1</span></span><span> </span><span class="annot"><span class="annottext">(YtpmeNon ByteArray -&gt; Build1) -&gt; YtpmeNon ByteArray -&gt; Build1
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Tsil ByteArray
+</span><a href="#local-6989586621679071044"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Tsil ByteArray -&gt; ByteArray -&gt; YtpmeNon ByteArray
+forall a. Tsil a -&gt; a -&gt; YtpmeNon a
+</span><span class="hs-operator hs-var">:/</span></span><span> </span><span class="annot"><span class="annottext">ByteArray
+</span><a href="#local-6989586621679071050"><span class="hs-identifier hs-var">arr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-287"></span><span>
+</span><span id="line-288"></span><span>                        </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071071"><span class="hs-identifier hs-var">txt</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; [ShortText] -&gt; [ShortText]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[ShortText]
+</span><a href="#local-6989586621679071066"><span class="hs-identifier hs-var">more</span></a></span><span>
+</span><span id="line-289"></span><span>
+</span><span id="line-290"></span><span>               </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">[ShortText]
+</span><a href="#local-6989586621679071066"><span class="hs-identifier hs-var">more</span></a></span><span>
+</span><span id="line-291"></span><span>
+</span><span id="line-292"></span><span>        </span><span class="annot"><span class="annottext">Radix1Tree a
+</span><span class="hs-identifier hs-var">Radix.Nil</span></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-293"></span><span>
+</span><span id="line-294"></span><span>
+</span><span id="line-295"></span><span>
+</span><span id="line-296"></span><span class="annot"><a href="Data.Console.Options.Internal.html#goldenRatio"><span class="hs-identifier hs-type">goldenRatio</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Float</span></span><span>
+</span><span id="line-297"></span><span id="goldenRatio"><span class="annot"><span class="annottext">goldenRatio :: Float
+</span><a href="Data.Console.Options.Internal.html#goldenRatio"><span class="hs-identifier hs-var hs-var">goldenRatio</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Float
+</span><span class="hs-number">1.618034</span></span><span>
+</span><span id="line-298"></span><span>
+</span><span id="line-299"></span><span class="annot"><span class="hs-comment">-- | Fuzzy search for 'System.Console.Options.Unrecognized' options.</span></span><span>
+</span><span id="line-300"></span><span id="local-6989586621679070785"><span class="annot"><a href="Data.Console.Options.Internal.html#suggestions"><span class="hs-identifier hs-type">suggestions</span></a></span><span>
+</span><span id="line-301"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="annot"><a href="#local-6989586621679070785"><span class="hs-identifier hs-type">f</span></a></span><span>
+</span><span id="line-302"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Full argument as a WTF-8 byte array.</span></span><span>
+</span><span id="line-303"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Console.Option.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span>               </span><span class="annot"><span class="hs-comment">-- ^ Option name in question.</span></span><span>
+</span><span id="line-304"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Console.Option.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-305"></span><span id="suggestions"><span class="annot"><span class="annottext">suggestions :: forall f. Options Identity f -&gt; ShortByteString -&gt; Name -&gt; [Name]
+</span><a href="Data.Console.Options.Internal.html#suggestions"><span class="hs-identifier hs-var hs-var">suggestions</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span id="local-6989586621679071089"><span class="annot"><span class="annottext">Patricia (Identity (Function f))
+</span><a href="#local-6989586621679071089"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621679071090"><span class="annot"><span class="annottext">Radix1Tree (Identity (Function f))
+</span><a href="#local-6989586621679071090"><span class="hs-identifier hs-var">radix</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679071091"><span class="annot"><span class="annottext">ShortByteString
+</span><a href="#local-6989586621679071091"><span class="hs-identifier hs-var">_sb</span></a></span></span><span> </span><span id="local-6989586621679071092"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679071092"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-306"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679071097"><span class="annot"><span class="annottext">findShort :: a -&gt; Bool
+</span><a href="#local-6989586621679071097"><span class="hs-identifier hs-var hs-var">findShort</span></a></span></span><span> </span><span id="local-6989586621679071098"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071098"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word -&gt; Patricia (Identity (Function f)) -&gt; Bool
+forall a. Word -&gt; Patricia a -&gt; Bool
+</span><span class="hs-identifier hs-var">Patricia.member</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Word) -&gt; Int -&gt; Word
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Int
+forall a. Enum a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">fromEnum</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071098"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Patricia (Identity (Function f))
+</span><a href="#local-6989586621679071089"><span class="hs-identifier hs-var">pat</span></a></span><span>
+</span><span id="line-307"></span><span>
+</span><span id="line-308"></span><span>      </span><span id="local-6989586621679071099"><span class="annot"><span class="annottext">findLongLog :: ShortText -&gt; [Name]
+</span><a href="#local-6989586621679071099"><span class="hs-identifier hs-var hs-var">findLongLog</span></a></span></span><span> </span><span id="local-6989586621679071100"><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071100"><span class="hs-identifier hs-var">txt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-309"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679071101"><span class="annot"><span class="annottext">raw :: ShortByteString
+</span><a href="#local-6989586621679071101"><span class="hs-identifier hs-var hs-var">raw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">ST.toShortByteString</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071100"><span class="hs-identifier hs-var">txt</span></a></span><span>
+</span><span id="line-310"></span><span>
+</span><span id="line-311"></span><span>            </span><span id="local-6989586621679071117"><span class="annot"><span class="annottext">ratio :: Int
+</span><a href="#local-6989586621679071117"><span class="hs-identifier hs-var hs-var">ratio</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Float -&gt; Int
+forall b. Integral b =&gt; Float -&gt; b
+forall a b. (RealFrac a, Integral b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">floor</span></span><span> </span><span class="annot"><span class="annottext">(Float -&gt; Int) -&gt; Float -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Float -&gt; Float -&gt; Float
+forall a. Floating a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">logBase</span></span><span> </span><span class="annot"><span class="annottext">Float
+</span><a href="Data.Console.Options.Internal.html#goldenRatio"><span class="hs-identifier hs-var">goldenRatio</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Float
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Float) -&gt; Int -&gt; Float
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; Int
+</span><span class="hs-identifier hs-var">SB.length</span></span><span> </span><span class="annot"><span class="annottext">ShortByteString
+</span><a href="#local-6989586621679071101"><span class="hs-identifier hs-var">raw</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-312"></span><span>
+</span><span id="line-313"></span><span>        </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ShortText -&gt; [Name]
+</span><a href="#local-6989586621679071121"><span class="hs-identifier hs-var">findLong</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071117"><span class="hs-identifier hs-var">ratio</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071100"><span class="hs-identifier hs-var">txt</span></a></span><span>
+</span><span id="line-314"></span><span>
+</span><span id="line-315"></span><span>      </span><span id="local-6989586621679071121"><span class="annot"><span class="annottext">findLong :: Int -&gt; ShortText -&gt; [Name]
+</span><a href="#local-6989586621679071121"><span class="hs-identifier hs-var hs-var">findLong</span></a></span></span><span> </span><span id="local-6989586621679071124"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071124"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679071125"><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071125"><span class="hs-identifier hs-var">txt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; Name
+</span><a href="Data.Console.Option.Internal.html#Long"><span class="hs-identifier hs-var">Long</span></a></span><span> </span><span class="annot"><span class="annottext">(ShortText -&gt; Name) -&gt; [ShortText] -&gt; [Name]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; ShortText -&gt; Radix1Tree (Identity (Function f)) -&gt; [ShortText]
+forall a. Int -&gt; ShortText -&gt; Radix1Tree a -&gt; [ShortText]
+</span><a href="Data.Console.Options.Internal.html#collectLevenshtein"><span class="hs-identifier hs-var">collectLevenshtein</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071124"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071125"><span class="hs-identifier hs-var">txt</span></a></span><span> </span><span class="annot"><span class="annottext">Radix1Tree (Identity (Function f))
+</span><a href="#local-6989586621679071090"><span class="hs-identifier hs-var">radix</span></a></span><span>
+</span><span id="line-316"></span><span>
+</span><span id="line-317"></span><span>  </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679071092"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-318"></span><span>       </span><span class="annot"><a href="Data.Console.Option.Internal.html#Short"><span class="hs-identifier hs-type">Short</span></a></span><span> </span><span id="local-6989586621679071127"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071127"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-319"></span><span>         </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679071128"><span class="annot"><span class="annottext">raw :: ShortText
+</span><a href="#local-6989586621679071128"><span class="hs-identifier hs-var hs-var">raw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; ShortText
+</span><span class="hs-identifier hs-var">ST.fromShortByteStringUnsafe</span></span><span> </span><span class="annot"><span class="annottext">(ShortByteString -&gt; ShortText) -&gt; ShortByteString -&gt; ShortText
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ShortByteString -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">SB.drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">ShortByteString
+</span><a href="#local-6989586621679071091"><span class="hs-identifier hs-var">_sb</span></a></span><span>
+</span><span id="line-320"></span><span>
+</span><span id="line-321"></span><span>         </span><span class="hs-keyword">in</span><span> </span><span class="hs-comment">-- A short option or short group may be a mistyped long option</span><span>
+</span><span id="line-322"></span><span>            </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; Int
+</span><span class="hs-identifier hs-var">ST.length</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071128"><span class="hs-identifier hs-var">raw</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-323"></span><span>              </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; Int -&gt; Maybe Char
+</span><span class="hs-identifier hs-var">ST.indexMaybe</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071128"><span class="hs-identifier hs-var">raw</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-324"></span><span>                     </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679071132"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071132"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071132"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071127"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-325"></span><span>                       </span><span class="hs-comment">-- find any long option 1-2 wide with the char in it</span><span>
+</span><span id="line-326"></span><span>                       </span><span class="annot"><span class="annottext">Int -&gt; ShortText -&gt; [Name]
+</span><a href="#local-6989586621679071121"><span class="hs-identifier hs-var">findLong</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">(ShortText -&gt; [Name]) -&gt; ShortText -&gt; [Name]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShortText
+</span><span class="hs-identifier hs-var">ST.pack</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071127"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071127"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-327"></span><span>
+</span><span id="line-328"></span><span>                     </span><span class="annot"><span class="annottext">Maybe Char
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-329"></span><span>
+</span><span id="line-330"></span><span>              </span><span class="hs-keyword">else</span><span> </span><span class="hs-comment">-- Gate by 2 since @logBase goldenRatio 1 == 0@.</span><span>
+</span><span id="line-331"></span><span>                   </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; Int
+</span><span class="hs-identifier hs-var">ST.length</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071128"><span class="hs-identifier hs-var">raw</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-332"></span><span>                     </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; [Name]
+</span><a href="#local-6989586621679071099"><span class="hs-identifier hs-var">findLongLog</span></a></span><span> </span><span class="annot"><span class="annottext">(ShortText -&gt; [Name]) -&gt; ShortText -&gt; [Name]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ShortText -&gt; ShortText
+</span><span class="hs-identifier hs-var">ST.drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071128"><span class="hs-identifier hs-var">raw</span></a></span><span>
+</span><span id="line-333"></span><span>                     </span><span class="hs-keyword">else</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-334"></span><span>
+</span><span id="line-335"></span><span>       </span><span class="annot"><a href="Data.Console.Option.Internal.html#Long"><span class="hs-identifier hs-type">Long</span></a></span><span> </span><span id="local-6989586621679071135"><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071135"><span class="hs-identifier hs-var">ls</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-336"></span><span>         </span><span class="hs-special">(</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679071137"><span class="annot"><span class="annottext">suggestShort :: Char -&gt; [Name] -&gt; [Name]
+</span><a href="#local-6989586621679071137"><span class="hs-identifier hs-var hs-var">suggestShort</span></a></span></span><span> </span><span id="local-6989586621679071138"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071138"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679071139"><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621679071139"><span class="hs-identifier hs-var">acc</span></a></span></span><span>
+</span><span id="line-337"></span><span>                 </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+forall {a}. Enum a =&gt; a -&gt; Bool
+</span><a href="#local-6989586621679071097"><span class="hs-identifier hs-var">findShort</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071138"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Name
+</span><a href="Data.Console.Option.Internal.html#Short"><span class="hs-identifier hs-var">Short</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071138"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Name -&gt; [Name] -&gt; [Name]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621679071139"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-338"></span><span>                 </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>   </span><span class="hs-glyph">=</span><span>           </span><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621679071139"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-339"></span><span>
+</span><span id="line-340"></span><span>              </span><span class="hs-comment">-- A long option may be a mistyped short option or short group</span><span>
+</span><span id="line-341"></span><span>           </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; Int
+</span><span class="hs-identifier hs-var">ST.length</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071135"><span class="hs-identifier hs-var">ls</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-342"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679071140"><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621679071140"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; [Name] -&gt; [Name]) -&gt; [Name] -&gt; String -&gt; [Name]
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; [Name] -&gt; [Name]
+</span><a href="#local-6989586621679071137"><span class="hs-identifier hs-var">suggestShort</span></a></span><span> </span><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621679071140"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; [Name]) -&gt; ShowS -&gt; String -&gt; [Name]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ShowS
+forall a. Eq a =&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">List.nub</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; [Name]) -&gt; String -&gt; [Name]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; String
+</span><span class="hs-identifier hs-var">ST.unpack</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071135"><span class="hs-identifier hs-var">ls</span></a></span><span>
+</span><span id="line-343"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">[Name] -&gt; [Name]
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-344"></span><span>         </span><span class="hs-special">)</span><span>
+</span><span id="line-345"></span><span>         </span><span class="annot"><span class="annottext">([Name] -&gt; [Name]) -&gt; [Name] -&gt; [Name]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679071143"><span class="annot"><span class="annottext">raw :: ShortText
+</span><a href="#local-6989586621679071143"><span class="hs-identifier hs-var hs-var">raw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortByteString -&gt; ShortText
+</span><span class="hs-identifier hs-var">ST.fromShortByteStringUnsafe</span></span><span> </span><span class="annot"><span class="annottext">(ShortByteString -&gt; ShortText) -&gt; ShortByteString -&gt; ShortText
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; ShortByteString -&gt; ShortByteString
+</span><span class="hs-identifier hs-var">SB.drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">ShortByteString
+</span><a href="#local-6989586621679071091"><span class="hs-identifier hs-var">_sb</span></a></span><span>
+</span><span id="line-346"></span><span>
+</span><span id="line-347"></span><span>                 </span><span id="local-6989586621679071148"><span class="annot"><span class="annottext">collectLongs :: [Name]
+</span><a href="#local-6989586621679071148"><span class="hs-identifier hs-var hs-var">collectLongs</span></a></span></span><span>
+</span><span id="line-348"></span><span>                   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; Int
+</span><span class="hs-identifier hs-var">ST.length</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071135"><span class="hs-identifier hs-var">ls</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ShortText -&gt; [Name]
+</span><a href="#local-6989586621679071121"><span class="hs-identifier hs-var">findLong</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">(ShortText -&gt; [Name]) -&gt; ShortText -&gt; [Name]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071135"><span class="hs-identifier hs-var">ls</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; ShortText -&gt; ShortText
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071135"><span class="hs-identifier hs-var">ls</span></a></span><span>
+</span><span id="line-349"></span><span>                   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; [Name]
+</span><a href="#local-6989586621679071099"><span class="hs-identifier hs-var">findLongLog</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071135"><span class="hs-identifier hs-var">ls</span></a></span><span>
+</span><span id="line-350"></span><span>
+</span><span id="line-351"></span><span>                </span><span class="hs-comment">-- Argument matches are only tried when the option name</span><span>
+</span><span id="line-352"></span><span>                </span><span class="hs-comment">-- doesn't match, to avoid duplicate reports</span><span>
+</span><span id="line-353"></span><span>             </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621679071148"><span class="hs-identifier hs-var">collectLongs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-354"></span><span>                  </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; Int
+</span><span class="hs-identifier hs-var">ST.length</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071143"><span class="hs-identifier hs-var">raw</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; Int
+</span><span class="hs-identifier hs-var">ST.length</span></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071135"><span class="hs-identifier hs-var">ls</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-355"></span><span>                         </span><span class="annot"><span class="annottext">ShortText -&gt; [Name]
+</span><a href="#local-6989586621679071099"><span class="hs-identifier hs-var">findLongLog</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071143"><span class="hs-identifier hs-var">raw</span></a></span><span>
+</span><span id="line-356"></span><span>
+</span><span id="line-357"></span><span>                  </span><span class="annot"><span class="annottext">[Name]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621679071148"><span class="hs-identifier hs-var">collectLongs</span></a></span><span>
+</span><span id="line-358"></span><span>           </span><span class="hs-special">)</span><span>
+</span><span id="line-359"></span></pre></body></html>

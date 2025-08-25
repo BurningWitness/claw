@@ -1,0 +1,495 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns
+           , MagicHash
+           , OverloadedStrings
+           , UnboxedTuples #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="annot"><span class="hs-comment">{- | Command-line option parsing.
+
+     == Implementation
+
+     Description of the argument syntax can be found at
+     [GNU Program Argument Syntax Conventions](https://www.gnu.org/software/libc/manual/html_node/Argument-Syntax.html)
+     page, which extends the short-option-only
+     [POSIX Utility Conventions](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap12.html).
+
+     On POSIX-compliant systems string comparisons rely on POSIX portable characters
+     always being represented in a single byte, per
+     [POSIX Character Set](https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap06.html)
+     specification.
+ -}</span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="System.Console.Options.html"><span class="hs-identifier">System.Console.Options</span></a></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Parse</span></span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><a href="System.Console.Options.html#Failure"><span class="hs-identifier">Failure</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Options.html#Outcome"><span class="hs-identifier">Outcome</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.Console.Options.html#parse"><span class="hs-identifier">parse</span></a></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Codec.Console.Options.html"><span class="hs-identifier">Codec.Console.Options</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Codec</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Console.Option.Internal.html"><span class="hs-identifier">Data.Console.Option.Internal</span></a></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Console.Options.Internal.html"><span class="hs-identifier">Data.Console.Options.Internal</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Options</span></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteString.Short</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ShortByteString</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Coerce</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Functor.Identity</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Primitive.ByteArray</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text.Short</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ShortText</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Encoding.UTF8</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">utf8EncodeByteArray#</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">System.OsPath</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">OsPath</span></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.OsString.Internal.Types</span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="annot"><span class="hs-comment">-- | Argument parsing error.</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">data</span><span> </span><span id="Failure"><span class="annot"><a href="System.Console.Options.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | Option contains characters outside of the POSIX Portable Character Set.</span></span><span>
+</span><span id="line-45"></span><span>               </span><span id="NonPortable"><span class="annot"><a href="System.Console.Options.html#NonPortable"><span class="hs-identifier hs-var">NonPortable</span></a></span></span><span>
+</span><span id="line-46"></span><span>                 </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">OsString</span></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ Raw argument.</span></span><span>
+</span><span id="line-47"></span><span>                 </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Argument converted to WTF-8.</span></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span>             </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | Option name isn't on the list.</span></span><span>
+</span><span id="line-50"></span><span>               </span><span id="Unrecognized"><span class="annot"><a href="System.Console.Options.html#Unrecognized"><span class="hs-identifier hs-var">Unrecognized</span></a></span></span><span>
+</span><span id="line-51"></span><span>                 </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">OsString</span></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ Raw argument.</span></span><span>
+</span><span id="line-52"></span><span>                 </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Argument converted to WTF-8.</span></span><span>
+</span><span id="line-53"></span><span>                 </span><span class="hs-glyph">!</span><span class="annot"><a href="Data.Console.Option.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ Parsed option name.</span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span>               </span><span class="annot"><span class="hs-comment">-- | Option requires an argument, but none was provided.</span></span><span>
+</span><span id="line-56"></span><span>             </span><span class="hs-glyph">|</span><span> </span><span id="Unsaturated"><span class="annot"><a href="System.Console.Options.html#Unsaturated"><span class="hs-identifier hs-var">Unsaturated</span></a></span></span><span>
+</span><span id="line-57"></span><span>                 </span><span class="hs-glyph">!</span><span class="annot"><a href="Data.Console.Option.Internal.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span>     </span><span class="annot"><span class="hs-comment">-- ^ Parsed option name.</span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span>               </span><span class="annot"><span class="hs-comment">-- | Option takes no arguments, but was provided with one.</span></span><span>
+</span><span id="line-60"></span><span>             </span><span class="hs-glyph">|</span><span> </span><span id="Oversaturated"><span class="annot"><a href="System.Console.Options.html#Oversaturated"><span class="hs-identifier hs-var">Oversaturated</span></a></span></span><span>
+</span><span id="line-61"></span><span>                 </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">ShortText</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Long option name, may be empty (consider @--=ARG@).</span></span><span>
+</span><span id="line-62"></span><span>                 </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">OsString</span></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Argument passed to the option.</span></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="annot"><span class="hs-comment">-- | Parsing outcome.</span></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">data</span><span> </span><span id="Outcome"><span class="annot"><a href="System.Console.Options.html#Outcome"><span class="hs-identifier hs-var">Outcome</span></a></span></span><span> </span><span id="local-6989586621679071189"><span class="annot"><a href="#local-6989586621679071189"><span class="hs-identifier hs-type">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-comment">-- | Reached end of options successfully.</span><span>
+</span><span id="line-68"></span><span>                 </span><span class="hs-comment">--</span><span>
+</span><span id="line-69"></span><span>                 </span><span class="hs-comment">--   Returns modified state and the list of non-option arguments</span><span>
+</span><span id="line-70"></span><span>                 </span><span class="hs-comment">--   in the order they were encountered.</span><span>
+</span><span id="line-71"></span><span>                 </span><span id="Success"><span class="annot"><a href="System.Console.Options.html#Success"><span class="hs-identifier hs-var">Success</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">OsString</span></span><span class="hs-special">]</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span>                 </span><span class="annot"><span class="hs-comment">-- | Optional early exit.</span></span><span>
+</span><span id="line-74"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span id="Broken"><span class="annot"><a href="System.Console.Options.html#Broken"><span class="hs-identifier hs-var">Broken</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679071189"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span id="Failure"><span class="annot"><a href="System.Console.Options.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="System.Console.Options.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="annot"><span class="hs-comment">-- | Convert 't:OsString' to a WTF-8 byte array</span></span><span>
+</span><span id="line-81"></span><span class="annot"><a href="System.Console.Options.html#interpret"><span class="hs-identifier hs-type">interpret</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OsString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span>
+</span><span id="line-82"></span><span id="interpret"><span class="annot"><span class="annottext">interpret :: OsString -&gt; IO ShortByteString
+</span><a href="System.Console.Options.html#interpret"><span class="hs-identifier hs-var hs-var">interpret</span></a></span></span><span> </span><span id="local-6989586621679071223"><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071223"><span class="hs-identifier hs-var">raw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-83"></span><span>  </span><span id="local-6989586621679071224"><span class="annot"><a href="#local-6989586621679071224"><span class="hs-identifier hs-var">str</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">OsString -&gt; IO String
+</span><span class="hs-identifier hs-var">OsPath.decodeFS</span></span><span> </span><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071223"><span class="hs-identifier hs-var">raw</span></a></span><span>
+</span><span id="line-84"></span><span>                            </span><span class="hs-comment">-- Relying on this function to not replace surrogates</span><span>
+</span><span id="line-85"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$!</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShortByteString</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">utf8EncodeByteArray#</span></span><span> </span><span class="annot"><a href="#local-6989586621679071224"><span class="hs-identifier hs-type">str</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- | Parse command-line options.</span><span>
+</span><span id="line-90"></span><span class="hs-comment">--</span><span>
+</span><span id="line-91"></span><span class="hs-comment">--   Treats characters outside of POSIX Portable Character Set as incomparable.</span><span>
+</span><span id="line-92"></span><span class="hs-comment">--</span><span>
+</span><span id="line-93"></span><span class="hs-comment">--   Relies on 'GHC.IO.Encoding.getFileSystemEncoding' on POSIX-compliant platforms.</span><span>
+</span><span id="line-94"></span><span id="local-6989586621679071179"><span id="local-6989586621679071180"><span class="annot"><a href="System.Console.Options.html#parse"><span class="hs-identifier hs-type">parse</span></a></span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Console.Options.Internal.html#Options"><span class="hs-identifier hs-type">Options</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679071179"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679071180"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679071179"><span class="hs-identifier hs-type">s</span></a></span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">OsString</span></span><span class="hs-special">]</span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.Console.Options.html#Outcome"><span class="hs-identifier hs-type">Outcome</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071180"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-99"></span><span id="parse"><span class="annot"><span class="annottext">parse :: forall s r.
+Options Identity (s -&gt; IO (Either r ()))
+-&gt; s -&gt; [OsString] -&gt; IO (Outcome r)
+</span><a href="System.Console.Options.html#parse"><span class="hs-identifier hs-var hs-var">parse</span></a></span></span><span> </span><span id="local-6989586621679071229"><span class="annot"><span class="annottext">Options Identity (s -&gt; IO (Either r ()))
+</span><a href="#local-6989586621679071229"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621679071230"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679071230"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[OsString] -&gt; [OsString] -&gt; IO (Outcome r)
+</span><a href="#local-6989586621679071231"><span class="hs-identifier hs-var">next_</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-101"></span><span>    </span><span id="local-6989586621679071246"><span class="annot"><span class="annottext">next :: [OsString] -&gt; [OsString] -&gt; Either r () -&gt; IO (Outcome r)
+</span><a href="#local-6989586621679071246"><span class="hs-identifier hs-var hs-var">next</span></a></span></span><span> </span><span id="local-6989586621679071247"><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071247"><span class="hs-identifier hs-var">keep</span></a></span></span><span> </span><span id="local-6989586621679071248"><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071248"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679071249"><span class="annot"><span class="annottext">Either r ()
+</span><a href="#local-6989586621679071249"><span class="hs-identifier hs-var">out</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-102"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either r ()
+</span><a href="#local-6989586621679071249"><span class="hs-identifier hs-var">out</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-103"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><span class="annottext">()
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[OsString] -&gt; [OsString] -&gt; IO (Outcome r)
+</span><a href="#local-6989586621679071231"><span class="hs-identifier hs-var">next_</span></a></span><span> </span><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071247"><span class="hs-identifier hs-var">keep</span></a></span><span> </span><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071248"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-104"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679071250"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679071250"><span class="hs-identifier hs-var">r</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Outcome r -&gt; IO (Outcome r)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Outcome r -&gt; IO (Outcome r)) -&gt; Outcome r -&gt; IO (Outcome r)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">r -&gt; Outcome r
+forall r. r -&gt; Outcome r
+</span><a href="System.Console.Options.html#Broken"><span class="hs-identifier hs-var">Broken</span></a></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679071250"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span>    </span><span id="local-6989586621679071231"><span class="annot"><span class="annottext">next_ :: [OsString] -&gt; [OsString] -&gt; IO (Outcome r)
+</span><a href="#local-6989586621679071231"><span class="hs-identifier hs-var hs-var">next_</span></a></span></span><span> </span><span id="local-6989586621679071251"><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071251"><span class="hs-identifier hs-var">keep</span></a></span></span><span> </span><span id="local-6989586621679071252"><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071252"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-107"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071252"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-108"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">]</span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Outcome r -&gt; IO (Outcome r)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Outcome r -&gt; IO (Outcome r)) -&gt; Outcome r -&gt; IO (Outcome r)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(#</span><span> </span><span id="local-6989586621679071253"><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071253"><span class="hs-identifier hs-var">rest</span></a></span></span><span> </span><span class="hs-special">#)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[OsString] -&gt; [OsString] -&gt; (# [OsString] #)
+forall a. [a] -&gt; [a] -&gt; (# [a] #)
+</span><a href="System.Console.Options.html#rev"><span class="hs-identifier hs-var">rev</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071251"><span class="hs-identifier hs-var">keep</span></a></span><span>
+</span><span id="line-109"></span><span>                              </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">[OsString] -&gt; Outcome r
+forall r. [OsString] -&gt; Outcome r
+</span><a href="System.Console.Options.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span> </span><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071253"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-110"></span><span>        </span><span id="local-6989586621679071255"><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071255"><span class="hs-identifier hs-var">this</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679071256"><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071256"><span class="hs-identifier hs-var">rest</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-111"></span><span>          </span><span id="local-6989586621679071257"><span class="annot"><a href="#local-6989586621679071257"><span class="hs-identifier hs-var">wtf8</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">OsString -&gt; IO ShortByteString
+</span><a href="System.Console.Options.html#interpret"><span class="hs-identifier hs-var">interpret</span></a></span><span> </span><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071255"><span class="hs-identifier hs-var">this</span></a></span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679071260"><span class="annot"><a href="#local-6989586621679071260"><span class="hs-identifier hs-var hs-var">saturate</span></a></span></span><span> </span><span id="local-6989586621679071261"><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679071261"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621679071262"><span class="annot"><span class="annottext">OsString -&gt; s -&gt; IO (Either r ())
+</span><a href="#local-6989586621679071262"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-114"></span><span>                </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071256"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-115"></span><span>                  </span><span id="local-6989586621679071263"><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071263"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679071264"><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071264"><span class="hs-identifier hs-var">rest'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-116"></span><span>                    </span><span id="local-6989586621679071265"><span class="annot"><a href="#local-6989586621679071265"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">OsString -&gt; s -&gt; IO (Either r ())
+</span><a href="#local-6989586621679071262"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071263"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679071230"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-117"></span><span>                    </span><span class="annot"><a href="#local-6989586621679071246"><span class="hs-identifier hs-type">next</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071251"><span class="hs-identifier hs-type">keep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071264"><span class="hs-identifier hs-type">rest'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071265"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span>                  </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Outcome r -&gt; IO (Outcome r)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Outcome r -&gt; IO (Outcome r))
+-&gt; (Failure -&gt; Outcome r) -&gt; Failure -&gt; IO (Outcome r)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Failure -&gt; Outcome r
+forall r. Failure -&gt; Outcome r
+</span><a href="System.Console.Options.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">(Failure -&gt; IO (Outcome r)) -&gt; Failure -&gt; IO (Outcome r)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Name -&gt; Failure
+</span><a href="System.Console.Options.html#Unsaturated"><span class="hs-identifier hs-var">Unsaturated</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679071261"><span class="hs-identifier hs-var">name</span></a></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span>              </span><span id="local-6989586621679071273"><span class="annot"><a href="#local-6989586621679071273"><span class="hs-identifier hs-var hs-var">nextShort</span></a></span></span><span> </span><span id="local-6989586621679071274"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071274"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679071275"><span class="annot"><span class="annottext">Maybe OsString
+</span><a href="#local-6989586621679071275"><span class="hs-identifier hs-var">mayArg</span></a></span></span><span> </span><span id="local-6989586621679071276"><span class="annot"><span class="annottext">ShortDecoder
+</span><a href="#local-6989586621679071276"><span class="hs-identifier hs-var">down</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-122"></span><span>                </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679071277"><span class="annot"><span class="annottext">short :: Name
+</span><a href="#local-6989586621679071277"><span class="hs-identifier hs-var hs-var">short</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Name
+</span><a href="Data.Console.Option.Internal.html#Short"><span class="hs-identifier hs-var">Short</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071274"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-123"></span><span>                </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Char
+-&gt; Options Identity (s -&gt; IO (Either r ()))
+-&gt; Maybe (Function (s -&gt; IO (Either r ())))
+forall f. Char -&gt; Options Identity f -&gt; Maybe (Function f)
+</span><a href="Data.Console.Options.Internal.html#lookupShort"><span class="hs-identifier hs-var">Options.lookupShort</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071274"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Options Identity (s -&gt; IO (Either r ()))
+</span><a href="#local-6989586621679071229"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-124"></span><span>                     </span><span class="annot"><span class="annottext">Maybe (Function (s -&gt; IO (Either r ())))
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Outcome r -&gt; IO (Outcome r)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Outcome r -&gt; IO (Outcome r))
+-&gt; (Failure -&gt; Outcome r) -&gt; Failure -&gt; IO (Outcome r)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Failure -&gt; Outcome r
+forall r. Failure -&gt; Outcome r
+</span><a href="System.Console.Options.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">(Failure -&gt; IO (Outcome r)) -&gt; Failure -&gt; IO (Outcome r)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">OsString -&gt; ShortByteString -&gt; Name -&gt; Failure
+</span><a href="System.Console.Options.html#Unrecognized"><span class="hs-identifier hs-var">Unrecognized</span></a></span><span> </span><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071255"><span class="hs-identifier hs-var">this</span></a></span><span> </span><span class="annot"><span class="annottext">ShortByteString
+</span><a href="#local-6989586621679071257"><span class="hs-identifier hs-var">wtf8</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679071277"><span class="hs-identifier hs-var">short</span></a></span><span>
+</span><span id="line-125"></span><span>                     </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679071280"><span class="annot"><span class="annottext">Function (s -&gt; IO (Either r ()))
+</span><a href="#local-6989586621679071280"><span class="hs-identifier hs-var">pair</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-126"></span><span>                       </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Function (s -&gt; IO (Either r ()))
+</span><a href="#local-6989586621679071280"><span class="hs-identifier hs-var">pair</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-127"></span><span>                         </span><span class="annot"><a href="Data.Console.Option.Internal.html#Zero"><span class="hs-identifier hs-type">Zero</span></a></span><span> </span><span id="local-6989586621679071282"><span class="annot"><span class="annottext">s -&gt; IO (Either r ())
+</span><a href="#local-6989586621679071282"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-128"></span><span>                           </span><span id="local-6989586621679071283"><span class="annot"><a href="#local-6989586621679071283"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">s -&gt; IO (Either r ())
+</span><a href="#local-6989586621679071282"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679071230"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-129"></span><span>                           </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679071283"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-130"></span><span>                             </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679071284"><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679071284"><span class="hs-identifier hs-var">r'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Outcome r -&gt; IO (Outcome r)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Outcome r -&gt; IO (Outcome r)) -&gt; Outcome r -&gt; IO (Outcome r)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">r -&gt; Outcome r
+forall r. r -&gt; Outcome r
+</span><a href="System.Console.Options.html#Broken"><span class="hs-identifier hs-var">Broken</span></a></span><span> </span><span class="annot"><span class="annottext">r
+</span><a href="#local-6989586621679071284"><span class="hs-identifier hs-var">r'</span></a></span><span>
+</span><span id="line-131"></span><span>                             </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><span class="annottext">()
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-132"></span><span>                               </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ShortDecoder
+</span><a href="#local-6989586621679071276"><span class="hs-identifier hs-var">down</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-133"></span><span>                                 </span><span class="annot"><span class="annottext">ShortDecoder
+</span><a href="Codec.Console.Options.html#End%27"><span class="hs-identifier hs-var">Codec.End'</span></a></span><span>                    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[OsString] -&gt; [OsString] -&gt; IO (Outcome r)
+</span><a href="#local-6989586621679071231"><span class="hs-identifier hs-var">next_</span></a></span><span> </span><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071251"><span class="hs-identifier hs-var">keep</span></a></span><span> </span><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071256"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-134"></span><span>                                 </span><span class="annot"><a href="Codec.Console.Options.html#Short%27"><span class="hs-identifier hs-type">Codec.Short'</span></a></span><span> </span><span id="local-6989586621679071287"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071287"><span class="hs-identifier hs-var">c'</span></a></span></span><span> </span><span id="local-6989586621679071288"><span class="annot"><span class="annottext">Maybe OsString
+</span><a href="#local-6989586621679071288"><span class="hs-identifier hs-var">mayArg'</span></a></span></span><span> </span><span id="local-6989586621679071289"><span class="annot"><span class="annottext">ShortDecoder
+</span><a href="#local-6989586621679071289"><span class="hs-identifier hs-var">down'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-135"></span><span>                                   </span><span class="annot"><span class="annottext">Char -&gt; Maybe OsString -&gt; ShortDecoder -&gt; IO (Outcome r)
+</span><a href="#local-6989586621679071273"><span class="hs-identifier hs-var">nextShort</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071287"><span class="hs-identifier hs-var">c'</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe OsString
+</span><a href="#local-6989586621679071288"><span class="hs-identifier hs-var">mayArg'</span></a></span><span> </span><span class="annot"><span class="annottext">ShortDecoder
+</span><a href="#local-6989586621679071289"><span class="hs-identifier hs-var">down'</span></a></span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span>                                 </span><span class="annot"><span class="annottext">ShortDecoder
+</span><a href="Codec.Console.Options.html#Undecodable%27"><span class="hs-identifier hs-var">Codec.Undecodable'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-138"></span><span>                                   </span><span class="annot"><span class="annottext">Outcome r -&gt; IO (Outcome r)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Outcome r -&gt; IO (Outcome r))
+-&gt; (Failure -&gt; Outcome r) -&gt; Failure -&gt; IO (Outcome r)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Failure -&gt; Outcome r
+forall r. Failure -&gt; Outcome r
+</span><a href="System.Console.Options.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">(Failure -&gt; IO (Outcome r)) -&gt; Failure -&gt; IO (Outcome r)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">OsString -&gt; ShortByteString -&gt; Failure
+</span><a href="System.Console.Options.html#NonPortable"><span class="hs-identifier hs-var">NonPortable</span></a></span><span> </span><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071255"><span class="hs-identifier hs-var">this</span></a></span><span> </span><span class="annot"><span class="annottext">ShortByteString
+</span><a href="#local-6989586621679071257"><span class="hs-identifier hs-var">wtf8</span></a></span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span>                         </span><span class="annot"><a href="Data.Console.Option.Internal.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span id="local-6989586621679071292"><span class="annot"><span class="annottext">Maybe OsString -&gt; s -&gt; IO (Either r ())
+</span><a href="#local-6989586621679071292"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-141"></span><span>                           </span><span id="local-6989586621679071293"><span class="annot"><a href="#local-6989586621679071293"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe OsString -&gt; s -&gt; IO (Either r ())
+</span><a href="#local-6989586621679071292"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe OsString
+</span><a href="#local-6989586621679071275"><span class="hs-identifier hs-var">mayArg</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679071230"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-142"></span><span>                           </span><span class="annot"><a href="#local-6989586621679071246"><span class="hs-identifier hs-type">next</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071251"><span class="hs-identifier hs-type">keep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071256"><span class="hs-identifier hs-type">rest</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071293"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span>                         </span><span class="annot"><a href="Data.Console.Option.Internal.html#One"><span class="hs-identifier hs-type">One</span></a></span><span> </span><span id="local-6989586621679071295"><span class="annot"><span class="annottext">OsString -&gt; s -&gt; IO (Either r ())
+</span><a href="#local-6989586621679071295"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-145"></span><span>                           </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe OsString
+</span><a href="#local-6989586621679071275"><span class="hs-identifier hs-var">mayArg</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-146"></span><span>                             </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679071296"><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071296"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-147"></span><span>                               </span><span id="local-6989586621679071297"><span class="annot"><a href="#local-6989586621679071297"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">OsString -&gt; s -&gt; IO (Either r ())
+</span><a href="#local-6989586621679071295"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071296"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679071230"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-148"></span><span>                               </span><span class="annot"><a href="#local-6989586621679071246"><span class="hs-identifier hs-type">next</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071251"><span class="hs-identifier hs-type">keep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071256"><span class="hs-identifier hs-type">rest</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071297"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span>                             </span><span class="annot"><span class="annottext">Maybe OsString
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Name -&gt; (OsString -&gt; s -&gt; IO (Either r ())) -&gt; IO (Outcome r)
+</span><a href="#local-6989586621679071260"><span class="hs-identifier hs-var">saturate</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679071277"><span class="hs-identifier hs-var">short</span></a></span><span> </span><span class="annot"><span class="annottext">OsString -&gt; s -&gt; IO (Either r ())
+</span><a href="#local-6989586621679071295"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span>              </span><span id="local-6989586621679071298"><span class="annot"><a href="#local-6989586621679071298"><span class="hs-identifier hs-var hs-var">isWindows</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either
+  (Coercion OsChar WindowsChar, Coercion OsString WindowsString)
+  (Coercion OsChar PosixChar, Coercion OsString PosixString)
+</span><span class="hs-identifier hs-var">coercionToPlatformTypes</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-153"></span><span>                            </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679071300"><span class="annot"><span class="annottext">(Coercion OsChar WindowsChar, Coercion OsString WindowsString)
+</span><a href="#local-6989586621679071300"><span class="hs-identifier hs-var">_windows</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-154"></span><span>                            </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679071301"><span class="annot"><span class="annottext">(Coercion OsChar PosixChar, Coercion OsString PosixString)
+</span><a href="#local-6989586621679071301"><span class="hs-identifier hs-var">_posix</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span>          </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="Codec.Console.Options.html#decode"><span class="hs-identifier hs-type">Codec.decode</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071298"><span class="hs-identifier hs-type">isWindows</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">coerce</span></span><span> </span><span class="annot"><a href="#local-6989586621679071255"><span class="hs-identifier hs-type">this</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679071257"><span class="hs-identifier hs-type">wtf8</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-157"></span><span>            </span><span class="annot"><a href="Codec.Console.Options.html#End"><span class="hs-identifier hs-type">Codec.End</span></a></span><span> </span><span id="local-6989586621679071304"><span class="annot"><span class="annottext">Maybe OsString
+</span><a href="#local-6989586621679071304"><span class="hs-identifier hs-var">mayArg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-158"></span><span>              </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe OsString
+</span><a href="#local-6989586621679071304"><span class="hs-identifier hs-var">mayArg</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-159"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679071305"><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071305"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Outcome r -&gt; IO (Outcome r)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Outcome r -&gt; IO (Outcome r))
+-&gt; (Failure -&gt; Outcome r) -&gt; Failure -&gt; IO (Outcome r)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Failure -&gt; Outcome r
+forall r. Failure -&gt; Outcome r
+</span><a href="System.Console.Options.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">(Failure -&gt; IO (Outcome r)) -&gt; Failure -&gt; IO (Outcome r)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; OsString -&gt; Failure
+</span><a href="System.Console.Options.html#Oversaturated"><span class="hs-identifier hs-var">Oversaturated</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071305"><span class="hs-identifier hs-var">arg</span></a></span><span>
+</span><span id="line-160"></span><span>                </span><span class="annot"><span class="annottext">Maybe OsString
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Outcome r -&gt; IO (Outcome r)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Outcome r -&gt; IO (Outcome r)) -&gt; Outcome r -&gt; IO (Outcome r)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(#</span><span> </span><span id="local-6989586621679071306"><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071306"><span class="hs-identifier hs-var">rest'</span></a></span></span><span> </span><span class="hs-special">#)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[OsString] -&gt; [OsString] -&gt; (# [OsString] #)
+forall a. [a] -&gt; [a] -&gt; (# [a] #)
+</span><a href="System.Console.Options.html#rev"><span class="hs-identifier hs-var">rev</span></a></span><span> </span><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071256"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071251"><span class="hs-identifier hs-var">keep</span></a></span><span>
+</span><span id="line-161"></span><span>                                   </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">[OsString] -&gt; Outcome r
+forall r. [OsString] -&gt; Outcome r
+</span><a href="System.Console.Options.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span> </span><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071306"><span class="hs-identifier hs-var">rest'</span></a></span><span>
+</span><span id="line-162"></span><span>
+</span><span id="line-163"></span><span>            </span><span class="annot"><span class="annottext">Decoder
+</span><a href="Codec.Console.Options.html#Argument"><span class="hs-identifier hs-var">Codec.Argument</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[OsString] -&gt; [OsString] -&gt; IO (Outcome r)
+</span><a href="#local-6989586621679071231"><span class="hs-identifier hs-var">next_</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071255"><span class="hs-identifier hs-var">this</span></a></span><span> </span><span class="annot"><span class="annottext">OsString -&gt; [OsString] -&gt; [OsString]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071251"><span class="hs-identifier hs-var">keep</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[OsString]
+</span><a href="#local-6989586621679071256"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span>            </span><span class="annot"><span class="annottext">Decoder
+</span><a href="Codec.Console.Options.html#Undecodable"><span class="hs-identifier hs-var">Codec.Undecodable</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Outcome r -&gt; IO (Outcome r)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Outcome r -&gt; IO (Outcome r))
+-&gt; (Failure -&gt; Outcome r) -&gt; Failure -&gt; IO (Outcome r)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Failure -&gt; Outcome r
+forall r. Failure -&gt; Outcome r
+</span><a href="System.Console.Options.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">(Failure -&gt; IO (Outcome r)) -&gt; Failure -&gt; IO (Outcome r)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">OsString -&gt; ShortByteString -&gt; Failure
+</span><a href="System.Console.Options.html#NonPortable"><span class="hs-identifier hs-var">NonPortable</span></a></span><span> </span><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071255"><span class="hs-identifier hs-var">this</span></a></span><span> </span><span class="annot"><span class="annottext">ShortByteString
+</span><a href="#local-6989586621679071257"><span class="hs-identifier hs-var">wtf8</span></a></span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span>            </span><span class="annot"><a href="Codec.Console.Options.html#Short"><span class="hs-identifier hs-type">Codec.Short</span></a></span><span> </span><span id="local-6989586621679071310"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071310"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621679071311"><span class="annot"><span class="annottext">Maybe OsString
+</span><a href="#local-6989586621679071311"><span class="hs-identifier hs-var">mayArg</span></a></span></span><span> </span><span id="local-6989586621679071312"><span class="annot"><span class="annottext">ShortDecoder
+</span><a href="#local-6989586621679071312"><span class="hs-identifier hs-var">down</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Maybe OsString -&gt; ShortDecoder -&gt; IO (Outcome r)
+</span><a href="#local-6989586621679071273"><span class="hs-identifier hs-var">nextShort</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679071310"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe OsString
+</span><a href="#local-6989586621679071311"><span class="hs-identifier hs-var">mayArg</span></a></span><span> </span><span class="annot"><span class="annottext">ShortDecoder
+</span><a href="#local-6989586621679071312"><span class="hs-identifier hs-var">down</span></a></span><span>
+</span><span id="line-168"></span><span>
+</span><span id="line-169"></span><span>            </span><span class="annot"><a href="Codec.Console.Options.html#Long"><span class="hs-identifier hs-type">Codec.Long</span></a></span><span> </span><span id="local-6989586621679071314"><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071314"><span class="hs-identifier hs-var">ls</span></a></span></span><span> </span><span id="local-6989586621679071315"><span class="annot"><span class="annottext">Maybe OsString
+</span><a href="#local-6989586621679071315"><span class="hs-identifier hs-var">mayArg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-170"></span><span>              </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679071316"><span class="annot"><span class="annottext">long :: Name
+</span><a href="#local-6989586621679071316"><span class="hs-identifier hs-var hs-var">long</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; Name
+</span><a href="Data.Console.Option.Internal.html#Long"><span class="hs-identifier hs-var">Long</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071314"><span class="hs-identifier hs-var">ls</span></a></span><span>
+</span><span id="line-171"></span><span>              </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">ShortText
+-&gt; Options Identity (s -&gt; IO (Either r ()))
+-&gt; Maybe (Function (s -&gt; IO (Either r ())))
+forall f. ShortText -&gt; Options Identity f -&gt; Maybe (Function f)
+</span><a href="Data.Console.Options.Internal.html#lookupLong"><span class="hs-identifier hs-var">Options.lookupLong</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071314"><span class="hs-identifier hs-var">ls</span></a></span><span> </span><span class="annot"><span class="annottext">Options Identity (s -&gt; IO (Either r ()))
+</span><a href="#local-6989586621679071229"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-172"></span><span>                   </span><span class="annot"><span class="annottext">Maybe (Function (s -&gt; IO (Either r ())))
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Outcome r -&gt; IO (Outcome r)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Outcome r -&gt; IO (Outcome r))
+-&gt; (Failure -&gt; Outcome r) -&gt; Failure -&gt; IO (Outcome r)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Failure -&gt; Outcome r
+forall r. Failure -&gt; Outcome r
+</span><a href="System.Console.Options.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">(Failure -&gt; IO (Outcome r)) -&gt; Failure -&gt; IO (Outcome r)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">OsString -&gt; ShortByteString -&gt; Name -&gt; Failure
+</span><a href="System.Console.Options.html#Unrecognized"><span class="hs-identifier hs-var">Unrecognized</span></a></span><span> </span><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071255"><span class="hs-identifier hs-var">this</span></a></span><span> </span><span class="annot"><span class="annottext">ShortByteString
+</span><a href="#local-6989586621679071257"><span class="hs-identifier hs-var">wtf8</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679071316"><span class="hs-identifier hs-var">long</span></a></span><span>
+</span><span id="line-173"></span><span>                   </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679071319"><span class="annot"><span class="annottext">Function (s -&gt; IO (Either r ()))
+</span><a href="#local-6989586621679071319"><span class="hs-identifier hs-var">pair</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-174"></span><span>                     </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Function (s -&gt; IO (Either r ()))
+</span><a href="#local-6989586621679071319"><span class="hs-identifier hs-var">pair</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-175"></span><span>                       </span><span class="annot"><a href="Data.Console.Option.Internal.html#Zero"><span class="hs-identifier hs-type">Zero</span></a></span><span> </span><span id="local-6989586621679071320"><span class="annot"><span class="annottext">s -&gt; IO (Either r ())
+</span><a href="#local-6989586621679071320"><span class="hs-identifier hs-var">f</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-176"></span><span>                         </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe OsString
+</span><a href="#local-6989586621679071315"><span class="hs-identifier hs-var">mayArg</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-177"></span><span>                           </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679071321"><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071321"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Outcome r -&gt; IO (Outcome r)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Outcome r -&gt; IO (Outcome r))
+-&gt; (Failure -&gt; Outcome r) -&gt; Failure -&gt; IO (Outcome r)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Failure -&gt; Outcome r
+forall r. Failure -&gt; Outcome r
+</span><a href="System.Console.Options.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">(Failure -&gt; IO (Outcome r)) -&gt; Failure -&gt; IO (Outcome r)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ShortText -&gt; OsString -&gt; Failure
+</span><a href="System.Console.Options.html#Oversaturated"><span class="hs-identifier hs-var">Oversaturated</span></a></span><span> </span><span class="annot"><span class="annottext">ShortText
+</span><a href="#local-6989586621679071314"><span class="hs-identifier hs-var">ls</span></a></span><span> </span><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071321"><span class="hs-identifier hs-var">arg</span></a></span><span>
+</span><span id="line-178"></span><span>                           </span><span class="annot"><span class="annottext">Maybe OsString
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-179"></span><span>                             </span><span id="local-6989586621679071322"><span class="annot"><a href="#local-6989586621679071322"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">s -&gt; IO (Either r ())
+</span><a href="#local-6989586621679071320"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679071230"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-180"></span><span>                             </span><span class="annot"><a href="#local-6989586621679071246"><span class="hs-identifier hs-type">next</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071251"><span class="hs-identifier hs-type">keep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071256"><span class="hs-identifier hs-type">rest</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071322"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span>                       </span><span class="annot"><a href="Data.Console.Option.Internal.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span id="local-6989586621679071323"><span class="annot"><span class="annottext">Maybe OsString -&gt; s -&gt; IO (Either r ())
+</span><a href="#local-6989586621679071323"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-183"></span><span>                         </span><span id="local-6989586621679071324"><span class="annot"><a href="#local-6989586621679071324"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe OsString -&gt; s -&gt; IO (Either r ())
+</span><a href="#local-6989586621679071323"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe OsString
+</span><a href="#local-6989586621679071315"><span class="hs-identifier hs-var">mayArg</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679071230"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-184"></span><span>                         </span><span class="annot"><a href="#local-6989586621679071246"><span class="hs-identifier hs-type">next</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071251"><span class="hs-identifier hs-type">keep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071256"><span class="hs-identifier hs-type">rest</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071324"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span>                       </span><span class="annot"><a href="Data.Console.Option.Internal.html#One"><span class="hs-identifier hs-type">One</span></a></span><span> </span><span id="local-6989586621679071325"><span class="annot"><span class="annottext">OsString -&gt; s -&gt; IO (Either r ())
+</span><a href="#local-6989586621679071325"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-187"></span><span>                         </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe OsString
+</span><a href="#local-6989586621679071315"><span class="hs-identifier hs-var">mayArg</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-188"></span><span>                           </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679071326"><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071326"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-189"></span><span>                             </span><span id="local-6989586621679071327"><span class="annot"><a href="#local-6989586621679071327"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">OsString -&gt; s -&gt; IO (Either r ())
+</span><a href="#local-6989586621679071325"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">OsString
+</span><a href="#local-6989586621679071326"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679071230"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-190"></span><span>                             </span><span class="annot"><a href="#local-6989586621679071246"><span class="hs-identifier hs-type">next</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071251"><span class="hs-identifier hs-type">keep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071256"><span class="hs-identifier hs-type">rest</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071327"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-191"></span><span>
+</span><span id="line-192"></span><span>                           </span><span class="annot"><span class="annottext">Maybe OsString
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Name -&gt; (OsString -&gt; s -&gt; IO (Either r ())) -&gt; IO (Outcome r)
+</span><a href="#local-6989586621679071260"><span class="hs-identifier hs-var">saturate</span></a></span><span> </span><span class="annot"><span class="annottext">Name
+</span><a href="#local-6989586621679071316"><span class="hs-identifier hs-var">long</span></a></span><span> </span><span class="annot"><span class="annottext">OsString -&gt; s -&gt; IO (Either r ())
+</span><a href="#local-6989586621679071325"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span>
+</span><span id="line-195"></span><span>
+</span><span id="line-196"></span><span class="annot"><span class="hs-comment">-- | Reverse the second list and append to the first one.</span></span><span>
+</span><span id="line-197"></span><span id="local-6989586621679071190"><span class="annot"><a href="System.Console.Options.html#rev"><span class="hs-identifier hs-type">rev</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679071190"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679071190"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679071190"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">#)</span></span><span>
+</span><span id="line-198"></span><span id="rev"><span class="annot"><span class="annottext">rev :: forall a. [a] -&gt; [a] -&gt; (# [a] #)
+</span><a href="System.Console.Options.html#rev"><span class="hs-identifier hs-var hs-var">rev</span></a></span></span><span> </span><span id="local-6989586621679071328"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679071328"><span class="hs-identifier hs-var">zs</span></a></span></span><span> </span><span id="local-6989586621679071329"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679071329"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-199"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679071329"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-200"></span><span>    </span><span class="hs-special">[</span><span class="hs-special">]</span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679071328"><span class="hs-identifier hs-var">zs</span></a></span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-201"></span><span>    </span><span id="local-6989586621679071330"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071330"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679071331"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679071331"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679071332"><span class="annot"><span class="annottext">zs' :: [a]
+</span><a href="#local-6989586621679071332"><span class="hs-identifier hs-var hs-var">zs'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679071330"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; [a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679071328"><span class="hs-identifier hs-var">zs</span></a></span><span>
+</span><span id="line-202"></span><span>            </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; (# [a] #)
+forall a. [a] -&gt; [a] -&gt; (# [a] #)
+</span><a href="System.Console.Options.html#rev"><span class="hs-identifier hs-var">rev</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679071332"><span class="hs-identifier hs-var">zs'</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679071331"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-203"></span></pre></body></html>
